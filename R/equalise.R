@@ -1,17 +1,22 @@
 #' @export
 
-equalise <- function(oldData, newData, startingCSV) {
-  # equalise colnames of data
-  colnames(newData) <- colnames(oldData)
+equalise <- function(kornumsatz, product_info, reduce = T, path) {
+  # check out if there are any new products
+  dif <- setdiff(unique(kornumsatz$Produkt), unique(product_info$Produkte_App))
   
-  # check out which products are new
-  newproducts <- levels(newData$Produkt)[-which(levels(newData$Produkt) %in% levels(oldData$Produkt))]
-  return(newproducts)
+  if (length(dif) != 0) return(dif) # if there is dif return it...
   
+  # ... else edit kornumsatz and write it into database
+  korn_edit <- foodstorage::startup.settings(kornumsatz, product_info, reduce)
   
-  # newProdukte_App <- c(levels(startingCSV$Produkte_App), newproducts) %>%
-  #   sort() 
-  # return(newProdukte_App)
+  conn <- DBI::dbConnect(SQLite(), path)
+  dbWriteTable(
+    conn, 
+    "kornumsatz_edit",
+    korn_edit,
+    overwrite = T
+  )
+  dbDisconnect(conn)
   
   
 }

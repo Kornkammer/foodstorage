@@ -7,7 +7,7 @@ startup.settings <- function(table, importPRODUCTS, reduce = TRUE) {
   kornumsatz <- table
   Position <- 1:nrow(kornumsatz)
   kornumsatz <- cbind(Position, kornumsatz)
-  kornumsatz$Tag <- as.Date(kornumsatz$Tag, format="%d/%m/%Y")
+  kornumsatz$Tag <- as.Date(kornumsatz$Tag, format="%Y-%m-%d")
   kornumsatz$Produkt <- as.character(kornumsatz$Produkt)
   VPE <- numeric(nrow(kornumsatz))
   kornumsatz <- cbind(kornumsatz, VPE)
@@ -37,5 +37,6 @@ startup.settings <- function(table, importPRODUCTS, reduce = TRUE) {
   kornumsatz$Produkt <- as.factor(kornumsatz$Produkt)
   # one date, two rows -> reduce them to one
   if (reduce == TRUE) kornumsatz <- reduceONE(get("kornumsatz"))
+  kornumsatz$Tag <- as.character(kornumsatz$Tag)
   return(kornumsatz)
 }
