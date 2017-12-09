@@ -26,12 +26,14 @@ kornumsatz_origin <- kornumsatz_origin %>%
   # add cumulative sum for every product...
   mutate(Bestand.Einheit = ave(Menge, Produkt, FUN=cumsum)) %>% 
   # ... and sort by day again
-  arrange(Tag) 
+  arrange(Tag) %>%
+  select(Bestand.Einheit)
 dbWriteTable(
   mydb,
   "kornumsatz_origin",
   kornumsatz_origin,
-  overwrite = T
+  overwrite = T,
+  append = T
 )
 dbWriteTable(
   mydb, 
@@ -46,6 +48,8 @@ kornumsatz_edit <- foodstorage::startup.settings(
   dbReadTable(mydb, "kornumsatz_origin"), 
   dbReadTable(mydb, "product_info"), reduce = T
 )
+
+print(head(dbReadTable(mydb, "kornumsatz_origin")))
 
 # test
 p2 <- kornumsatz_origin$Bestand.Einheit[which(kornumsatz_origin$Produkt == "Olivenöl")]
