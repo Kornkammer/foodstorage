@@ -1,22 +1,23 @@
+#' @title generates an edited dataset
+#' @description If \code{checkDifference} doesn't recognize any differences (anymore),
+#' this function will generate an edited dataset, usually kornumsatz.
 #' @export
 
-equalise <- function(kornumsatz, product_info, reduce = T, path) {
-  # check out if there are any new products
-  dif <- setdiff(unique(kornumsatz$Produkt), unique(product_info$Produkte_App))
-  
-  if (length(dif) != 0) return(dif) # if there is dif return it...
-  
+equalise <- function(dataset, productInfo, reduce = T, pathTOmydb) {
+
   # ... else edit kornumsatz and write it into database
-  korn_edit <- foodstorage::startup.settings(kornumsatz, product_info, reduce)
+  kornumsatz_edit <- foodstorage::startup.settings(
+    dataset,
+    dbReadTable(mydb, productInfo), 
+    reduce = T
+  )
   
-  conn <- DBI::dbConnect(SQLite(), path)
+  conn <- DBI::dbConnect(SQLite(), pathTOmydb)
   dbWriteTable(
     conn, 
     "kornumsatz_edit",
-    korn_edit,
+    kornumsatz_edit,
     overwrite = T
   )
   dbDisconnect(conn)
-  
-  
 }

@@ -1,19 +1,70 @@
 ###################################################################################################
 ###################### read kornumsatz ############################################################
 ###################################################################################################
-data("kornumsatz_new", package = "foodstorage")
-starting_csv <<- read.csv("/home/simon/Documents/Studium/Bachelor-Arbeit/R-paket/foodstorage/data/starting_csv_20171125.csv")
-# '<<-' important because kornumsatz must be in globalenv() that it can be found by functions in server UI
-kornumsatz <<- kornumsatz_new
-kornumsatz$Produkt <<- as.character(kornumsatz$Produkt)
-kornumsatz <<- foodstorage::startup.settings(kornumsatz, importPRODUCTS = get("starting_csv"))
-kornumsatz$Produkt <<- as.factor(kornumsatz$Produkt)
+path <<- "/home/simon/Documents/Rprojects"
+files <- list.files(file.path(path))
+# filter all backups (files which end up with .BAK)
+backups <- files[which(stringr::str_detect(files, ".BAK$"))]
+current_backup <- backups[length(backups)] # use newest backup
 
-# check new data
-data("kornumsatz_new")
-addProducts <<- equalise(oldData = kornumsatz_demo,
-                         newData = kornumsatz_new,
-                         startingCSV = starting_csv)
+appDB <- dbConnect(SQLite(), file.path(path, current_backup))
+kornumsatz_origin <<- dbGetQuery(appDB, '
+SELECT strftime(\'%d/%m/%Y\',transactions.start/1000,\'unixepoch\') AS Tag,
+      ROUND(SUM(transaction_products.quantity), 3) AS Menge, 
+      transaction_products.unit AS Einheit,
+      ROUND(transaction_products.price, 2) AS Preis, 
+      transaction_products.title AS Produkt,
+      ROUND(SUM(transaction_products.quantity * transaction_products.price), 3) AS Summe
+FROM transaction_products 
+LEFT JOIN transactions
+      ON transactions._id = transaction_products.transaction_id 
+WHERE transactions.status IS \'final\' AND transaction_products.account_guid IS \'lager\'
+GROUP BY Tag, Produkt, Preis
+ORDER BY transactions.start
+'
+)
+dbDisconnect(appDB)
+# add 'Bestand.Einheit' column: cumulative sum for every product
+kornumsatz_origin <- kornumsatz_origin %>%
+  arrange(Produkt) %>%  
+  mutate(Bestand.Einheit = round(ave(Menge, Produkt, FUN=cumsum), 3)) %>%
+  mutate(Tag = as.Date(Tag, format = "%d/%m/%Y")) %>% 
+  arrange(Tag) %>%
+  mutate(Tag = as.character(Tag))
+
+### create new data base
+mydb <- dbConnect(SQLite(), file.path(path, "kornInfo.sqlite"))
+
+dbWriteTable(
+  mydb,
+  "kornumsatz_origin",
+  kornumsatz_origin,
+  overwrite = TRUE
+)
+# if productInfo already exist, no overwriting won't be necessary
+if (!"productInfo" %in% dbListTables(mydb)) {
+  data("starting_csv")
+  dbWriteTable(
+    mydb, 
+    "productInfo",
+    starting_csv
+  )
+}
+
+# '<<-' important because kornumsatz must be in globalenv() that it can be found by functions in server UI
+kornumsatz <<- dbReadTable(mydb, "kornumsatz_origin") %>%
+  mutate(Tag = as.Date(Tag, format = "%Y-%m-%d"))
+
+addProducts <<- checkDifference(kornumsatz,
+                       dbReadTable(mydb, "productInfo"))
+if (length(addProducts) == 0) {
+  equalise(kornumsatz, 
+           dbReadTable(mydb, "productInfo"),
+           reduce = T,
+           pathTOmydb = file.path(path, "kornInfo.sqlite"))
+}
+
+dbDisconnect(mydb)
 
 
 createShinyList <- function(what = "dt", check = FALSE) {
@@ -91,7 +142,6 @@ ui <- shinyUI(
             selectizeInput(
               "prodsummary", "Unter folgendem Namem zusammengefasst",
               choices = c("Bitte wählen" = "",
-                          levels(starting_csv$Produkte_Zusammenfassung),
                           "nicht beachten", "neues Produkt")
             ),
             helpText("Wähle 'neues Produkt' wenn wir es wirklich noch nie in der KoKa hatten und nicht in der Liste zu finden ist. Wähle 'nicht beachten', wenn man das Produkt später nicht im Warenbestandsverlauf sehen können soll.")
@@ -261,9 +311,12 @@ server <- shinyServer(function(input, output, session){
   
   # first at all: make starting_csv reactive
   rV <- reactiveValues(
-    starting_csv = get("starting_csv"),
+    productInfo = dbReadTable(
+      dbConnect(SQLite(), file.path(path, "kornInfo.sqlite")),
+      "productInfo"
+    ),
     addProducts = get("addProducts")
-    # print(head(get("starting_csv")))
+    # print(head(get("productInfo")))
   )
   
   output$plots <- renderUI({
@@ -294,93 +347,101 @@ server <- shinyServer(function(input, output, session){
   )
   
   #################################################################################################
-  ############################ update 'updating starting_csv UI' ##################################
+  ############################ update 'updating productInfo UI' ##################################
   
   # update all inputs after newproducts when some newproducts changes
   observeEvent(input$newproducts, {
-    starting_csv <- rV$starting_csv
+    productInfo <- rV$productInfo
+    
+    # print(str(productInfo))
     updateSelectizeInput(
       session, "prodsummary", "Unter folgendem Namen zusammengefasst",
       choices = c("Bitte wählen" = "",
-                  levels(starting_csv$Produkte_Zusammenfassung),
+                  levels(as.factor(productInfo$Produkte_Zusammenfassung)),
                   "neues Produkt", "nicht beachten")
     )
     updateSelectizeInput(
       session, "deliverer", "Lieferant Nr. 1",
       choices = c("Bitte wählen" = "",
-                  levels(starting_csv$Lieferant),
+                  levels(as.factor(productInfo$Lieferant)),
                   "neuer Lieferant")
     )
     updateSelectizeInput(
       session, "deliverer2", "Lieferant Nr. 2",
       choices = c("Bitte wählen" = "",
-                  levels(starting_csv$Lieferant))
+                  levels(as.factor(productInfo$Lieferant)))
     )
     updateSelectizeInput(
       session, "prodgroup", "Produktgruppe",
       choices = c("Bitte wählen" = "",
-                  levels(starting_csv$Produktgruppe),
+                  levels(as.factor(productInfo$Produktgruppe)),
                   "neue Produktgruppe")
     )
     updateSelectInput(
       session, "bulksize", "Verpackungseinheit",
       choices = c("Bitte wählen" = "",
-                  sort(unique(starting_csv$Verpackungseinheit)),
+                  sort(unique(productInfo$Verpackungseinheit)),
                   "neue VPE")
     )
   })
   
   # observe go_... buttons & close bsModals
   observeEvent(input$entry_prod, {
-    starting_csv <- rV$starting_csv
+    productInfo <- rV$productInfo
     toggleModal(session, "newprodMOD", toggle = "close")
     updateSelectizeInput(
       session, "prodsummary", "Unter folgendem Namen zusammengefasst",
-      choices = sort(c(levels(starting_csv$Produkte_Zusammenfassung), input$newprod)),
+      choices = sort(c(levels(as.factor(productInfo$Produkte_Zusammenfassung)), 
+                       input$newprod)),
       selected = input$newprod
     )
   })
   observeEvent(input$entry_deliv, {
-    starting_csv <- rV$starting_csv
+    productInfo <- rV$productInfo
     toggleModal(session, "newdelivMOD", toggle = "close")
     if (!is.null(input$newdeliv)) {
       updateSelectizeInput(
         session, "deliverer", "Lieferant Nr. 1",
-        choices = sort(c(levels(starting_csv$Lieferant), input$newdeliv)),
+        choices = sort(c(levels(as.factor(productInfo$Lieferant)), 
+                         input$newdeliv)),
         selected = input$newdeliv
       )
     }
     if (!is.null(input$newdeliv2)) {
       updateSelectizeInput(
         session, "deliverer2", "Lieferant Nr. 2 (optional)",
-        choices = sort(c(levels(starting_csv$Lieferant), input$newdeliv2)),
+        choices = sort(c(levels(as.factor(productInfo$Lieferant)), 
+                         input$newdeliv2)),
         selected = input$newdeliv2
       )
     }
   })
   observeEvent(input$entry_group, {
-    starting_csv <- rV$starting_csv
+    productInfo <- rV$productInfo
     toggleModal(session, "newgroupMOD", toggle = "close")
     updateSelectizeInput(
       session, "prodgroup", "Produktgruppe",
-      choices = sort(c(levels(starting_csv$Produktgruppe), input$newgroup)),
+      choices = sort(c(levels(as.factor(productInfo$Produktgruppe)), 
+                       input$newgroup)),
       selected = input$newgroup
     )
   })
   observeEvent(input$entry_bulk, {
-    starting_csv <- rV$starting_csv
+    productInfo <- rV$productInfo
     toggleModal(session, "newbulkMOD", toggle = "close")
     updateSelectInput(
       session, "bulksize", "Verpackungseinheit",
-      choices = sort(c(unique(starting_csv$Verpackungseinheit), input$newbulk)),
+      choices = sort(c(unique(productInfo$Verpackungseinheit), 
+                       input$newbulk)),
       selected = input$newbulk
     )
   })
   
-  # eventReactive: get information about deliverers etc. from starting_csv, if input$prodsummary != 'neues Produkt' 
+  # eventReactive: get information about deliverers etc. from productInfo, if input$prodsummary 
+  # is already known
   prodINFO <- eventReactive(input$prodsummary, {
     if (!input$prodsummary %in% c('neues Produkt', 'nicht beachten', '')) {
-      df <- rV$starting_csv[rV$starting_csv$Produkte_Zusammenfassung == input$prodsummary, ]
+      df <- rV$productInfo[rV$productInfo$Produkte_Zusammenfassung == input$prodsummary, ]
       # print(df)
       return(df)
     }
@@ -388,59 +449,59 @@ server <- shinyServer(function(input, output, session){
   
   # update of deliverer, deliverer2, prodgroup and bulksize when prodsummary is already known
   observeEvent(prodINFO(), {
-    starting_csv <- rV$starting_csv
+    productInfo <- rV$productInfo
     if (!input$prodsummary %in% c('neues Produkt', 'nicht beachten', '')) {
       df <- prodINFO()
       # print(df$Lieferant[1])
-      # print(levels(starting_csv$Lieferant))
+      # print(levels(productInfo$Lieferant))
       updateSelectizeInput(
         session, "deliverer", "Lieferant Nr. 1", 
-        choices = c(levels(starting_csv$Lieferant),
+        choices = c(levels(as.factor(productInfo$Lieferant)),
                     "neuer Lieferant"),
-        selected = df$Lieferant[1]
+        selected = df$Lieferant
       )
       updateSelectizeInput(
         session, "deliverer2", "Lieferant Nr. 2 (optional)",
-        choices = levels(starting_csv$Lieferant),
-        selected = df$Lieferant2[1]
+        choices = levels(as.factor(productInfo$Lieferant)),
+        selected = df$Lieferant2
       )
       updateSelectizeInput(
         session, "prodgroup", "Produktgruppe",
-        choices = c(levels(starting_csv$Produktgruppe),
+        choices = c(levels(as.factor(productInfo$Produktgruppe)),
                     "neue Produktgruppe"),
         selected = df$Produktgruppe
       )
       updateSelectInput(
         session, "bulksize", "Verpackungseinheit",
-        choices = c(sort(unique(starting_csv$Verpackungseinheit)),
+        choices = c(sort(unique(productInfo$Verpackungseinheit)),
                     "neue VPE"),
         selected = df$Verpackungseinheit
       )
     }
   })
   
-  # enter contant in starting_csv
+  # enter contant in productInfo
   enterContant <- eventReactive(input$go2, {
     # collect information about the product for further analysis
     if (input$prodsummary != 'nicht beachten') {
       newrow <- data.frame(
-        "Produkte_App" = factor(input$newproducts), 
-        "Produkte_Zusammenfassung" = factor(input$prodsummary),
-        "Lieferant" = factor(input$deliverer),
-        "Lieferant2" = factor(input$deliverer2),
-        "Produktgruppe" = factor(input$prodgroup),
-        "Verpackungseinheit" = as.numeric(input$bulksize)
+        "Produkte_App" = input$newproducts, 
+        "Produkte_Zusammenfassung" = input$prodsummary,
+        "Lieferant" = input$deliverer,
+        "Lieferant2" = input$deliverer2,
+        "Produktgruppe" = input$prodgroup,
+        "Verpackungseinheit" = as.character(input$bulksize)
       )
     }
     # ignore the product for further analysis
     if (input$prodsummary == 'nicht beachten') {
       newrow <- data.frame(
-        "Produkte_App" = factor(input$newproducts), 
+        "Produkte_App" = input$newproducts, 
         "Produkte_Zusammenfassung" = "NI",
         "Lieferant" = "NI",
         "Lieferant2" = "NI",
         "Produktgruppe" = "NI",
-        "Verpackungseinheit" = 0
+        "Verpackungseinheit" = "0"
       )
     }
     return(newrow)
@@ -449,12 +510,18 @@ server <- shinyServer(function(input, output, session){
   observeEvent(enterContant(), {
     newrow <- enterContant()
     ## for debugging:
-    # print(str(starting_csv))
+    # print(str(productInfo))
     # print(str(newrow))
-    # add the new row to starting_csv
-    rV$starting_csv <- rbind(rV$starting_csv, newrow)
+    # add the new row to productInfo
+    rV$productInfo <- rbind(rV$productInfo, newrow)
     # delete row from addProducts where ProdukteApp == input$newproducts
     rV$addProducts <<- rV$addProducts[which(rV$addProducts != input$newproducts)]
+    
+    # make entry in data base
+    kornInfo <- src_sqlite(file.path(path, "kornInfo.sqlite"))
+    db_insert_into(kornInfo$con, "productInfo", newrow)
+    # dbReadTable(kornInfo$con, "productInfo") %>%
+    #   tail(5) %>% print()
     
     # update selectizeInput of newproducts
     updateSelectizeInput(
@@ -464,14 +531,14 @@ server <- shinyServer(function(input, output, session){
     )
   })
   
-  # render DownloadButton: export starting_csv
+  # render DownloadButton: export productInfo
   output$download <- downloadHandler(
       filename = function() {
-        paste('starting_csv-', Sys.Date(), '.csv', sep='')
+        paste('productInfo-', Sys.Date(), '.csv', sep='')
       },
       content = function(file) {
-        # print(rV$starting_csv)
-        write.csv(rV$starting_csv, file)
+        # print(rV$productInfo)
+        write.table(rV$productInfo, file, sep = ";", row.names = F)
       }
     )
 })
