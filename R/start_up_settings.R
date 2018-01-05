@@ -1,10 +1,14 @@
+#' @title changes the input dataset
+#' @description This function edits the input dataset by adding more information about specific
+#' products like bulksize. The information comes from a second dataset, productInfo, which needs
+#' to have a column containing all names of products that exist in the original dataset.
 #' @export
 # sort data, add columns, adapt product names, etc ####
 
-startup.settings <- function(table, importPRODUCTS, reduce = TRUE) {
+startupSettings <- function(dataset, productInfo, reduce = TRUE) {
   
   
-  kornumsatz <- table
+  kornumsatz <- dataset
   Position <- 1:nrow(kornumsatz)
   kornumsatz <- cbind(Position, kornumsatz)
   kornumsatz$Tag <- as.Date(kornumsatz$Tag, format="%Y-%m-%d")
@@ -14,18 +18,17 @@ startup.settings <- function(table, importPRODUCTS, reduce = TRUE) {
   
   
   ### different product names, but same product, summarized ####
-  starting.csv <- importPRODUCTS
-  starting.csv$Produkte_App <- as.character(starting.csv$Produkte_App)
-  starting.csv$Produkte_Zusammenfassung <- as.character(starting.csv$Produkte_Zusammenfassung)
-  starting.csv$Verpackungseinheit <- as.numeric(starting.csv$Verpackungseinheit)
+  productInfo$Produkte_App <- as.character(productInfo$Produkte_App)
+  productInfo$Produkte_Zusammenfassung <- as.character(productInfo$Produkte_Zusammenfassung)
+  productInfo$Verpackungseinheit <- as.numeric(productInfo$Verpackungseinheit)
 
-  for (i in 1:nrow(starting.csv)) {
-    kornumsatz[kornumsatz$Produkt == starting.csv[i,"Produkte_App"],]$Produkt <- 
-      rep(starting.csv[i,"Produkte_Zusammenfassung"], 
-          nrow(kornumsatz[kornumsatz$Produkt == starting.csv[i,"Produkte_App"], ]))
-    kornumsatz[kornumsatz$Produkt == starting.csv[i,"Produkte_Zusammenfassung"], ]$VPE <- 
-      rep(starting.csv[i,"Verpackungseinheit"], 
-          nrow(kornumsatz[kornumsatz$Produkt == starting.csv[i,"Produkte_Zusammenfassung"], ]))
+  for (i in 1:nrow(productInfo)) {
+    kornumsatz[kornumsatz$Produkt == productInfo[i,"Produkte_App"],]$Produkt <- 
+      rep(productInfo[i,"Produkte_Zusammenfassung"], 
+          nrow(kornumsatz[kornumsatz$Produkt == productInfo[i,"Produkte_App"], ]))
+    kornumsatz[kornumsatz$Produkt == productInfo[i,"Produkte_Zusammenfassung"], ]$VPE <- 
+      rep(productInfo[i,"Verpackungseinheit"], 
+          nrow(kornumsatz[kornumsatz$Produkt == productInfo[i,"Produkte_Zusammenfassung"], ]))
   }
   
   # correction for beans
