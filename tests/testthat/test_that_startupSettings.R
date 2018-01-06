@@ -30,16 +30,24 @@ ORDER BY transactions.start
 
     #### add two columns: position and bulksize and check this ####
     newDataset <- addInfos(testData, testInfos)
+    print(newDataset)
+    print(ncol(newDataset))
     expect_is(newDataset, "data.frame")
     expect_length(newDataset,
-                  ncol(testData) + 2)
-    expect_named(colnames(newDataset),
-                 c(colnames(testData), "ID", "VPE"),
-                 ignore.order = T)
-    expect_is(newDataset$Position, "numeric")
+                  ncol(testData) + 4)
+    # expect_named(colnames(newDataset),
+    #              c(colnames(testData), "ID", "VPE", "Bestand.Einheit"),
+    #              ignore.order = T)
+    expect_is(newDataset$ID, "integer")
     expect_is(newDataset$VPE, "numeric")
+    expect_is(newDataset$Produkt_App, "character")
+    expect_is(newDataset$Produkt_Zusammenfassung, "character")
     expect_false(c(0, NA) %in% newDataset$VPE)
-    expect_false(c(0, NA) %in% newDataset$Position)
+    expect_false(c(0, NA) %in% newDataset$ID)
+    expect_gt( # expect greater than
+      length(unique(newDataset$Produkt_App)),
+      length(unique(newDataset$Produkte_Zusammenfassung))
+    )
 
   }
 )
