@@ -3,7 +3,7 @@
 #' This function adds row numbers to a dataset which equates an ID. Further a vector containing products' bulksize is added.
 #' @export
 
-addInfos <- function(dataset, productInfo) {
+editDataset <- function(dataset, productInfo) {
   # add ID
   dataset$ID <- 1:nrow(dataset)
   
@@ -23,7 +23,7 @@ addInfos <- function(dataset, productInfo) {
     inner_join(prodInfo) %>%
     mutate(ID = 1:length(Menge)) %>%
     group_by(Produkt_Zusammenfassung) %>%
-    mutate(Bestand.Einheit = round(ave(Menge, FUN = cumsum), 3)) %>%
-    rename(Produkt_App = Produkt)
+    mutate(Bestand.Einheit = round(ave(Menge, FUN = cumsum), 3))
+  
   return(newdata)
 }
