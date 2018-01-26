@@ -3,7 +3,7 @@
 #' This function adds row numbers to a dataset which equates an ID. Further a vector containing products' bulksize is added.
 #' @export
 
-editDataset <- function(dataset, productInfo) {
+editDataset <- function(dataset, productInfo, test = FALSE) {
   # add ID
   dataset$ID <- 1:nrow(dataset)
   
@@ -19,11 +19,27 @@ editDataset <- function(dataset, productInfo) {
     mutate(Produkt = as.character(Produkte_App)) %>%
     select(Produkt, Produkt_Zusammenfassung, VPE)
   
-  newdata <- dataset %>%
-    inner_join(prodInfo) %>%
+  editData <- dataset %>%
+    mutate(Tag = as.Date(Tag, format = "%d/%m/%Y", origin = "1970-01-01")) %>%
     mutate(ID = 1:length(Menge)) %>%
-    group_by(Produkt_Zusammenfassung) %>%
-    mutate(Bestand.Einheit = round(ave(Menge, FUN = cumsum), 3))
+    inner_join(prodInfo)
   
-  return(newdata)
+  summariseQuantity <- editData %>%
+    group_by(Produkt_Zusammenfassung, Tag) %>%
+    summarise(MengeNeu = sum(Menge))
+  
+  if (isTRUE(test)) return(list(
+    editData = editData, 
+    summariseQuantity = summariseQuantity
+  ))
+  
+  # identify duplicates of Produkt_Zusammenfassung & Tag, which means
+  # for the same product name exists more than one row on one day
+  duplicates <- identifyDuplicates(newDataset)
+  
+  # replace Menge with summariseQuantity and add a cumulative storage
+  # column
+  newData <- addCumulativeStorage(editData, duplicates, summariseQuantity)
+  
+  return(newData)
 }

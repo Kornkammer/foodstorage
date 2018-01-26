@@ -29,14 +29,18 @@ ORDER BY transactions.start
     dbDisconnect(kornInfo)
 
     #### add two columns: position and bulksize and check this ####
-    newDataset <- editDataset(testData, testInfos)
+    resultEditDataset <- editDataset(testData, testInfos, test = TRUE)
+    newDataset <- resultEditDataset$editData
     expect_is(newDataset, "data.frame")
-    expect_length(newDataset,
-                  ncol(testData) + 4)
+    expect_equal(
+      ncol(newDataset),
+      ncol(testData) + 3
+    )
     expect_is(newDataset$ID, "integer")
     expect_is(newDataset$VPE, "numeric")
     expect_is(newDataset$Produkt, "character")
     expect_is(newDataset$Produkt_Zusammenfassung, "character")
+    expect_is(newDataset$Tag, "Date")
     expect_false(NA %in% newDataset$VPE)
     expect_false(0 %in% newDataset$ID)
     expect_false(NA %in% newDataset$ID)
@@ -44,6 +48,36 @@ ORDER BY transactions.start
       length(unique(newDataset$Produkt)),
       length(unique(newDataset$Produkt_Zusammenfassung))
     )
+    #### expect no double dates and products
+    duplicates <- identifyDuplicates(newDataset)
+    summariseQuantity <- resultEditDataset$summariseQuantity
+    expect_equal(
+      nrow(newDataset),
+      length(duplicates) + nrow(summariseQuantity)
+    )
+    # dataset resulting from editDataset() without ID of duplicates = 
+    #   dataset resulting from reomveDuplicates
+    oldDataset <- newDataset
+    newDataset <- addCumulativeStorage(oldDataset, duplicates, summariseQuantity)
+    expect_equal(
+      nrow(oldDataset %>% filter(!ID %in% duplicates)),
+      nrow(newDataset)
+    )
+    # after removeDuplicates() are no more duplicates in the data
+    testData <- newDataset %>%
+      group_by(Produkt_Zusammenfassung, Tag) %>%
+      select(Produkt_Zusammenfassung, Tag)
+    expect_equal(
+      nrow(testData[duplicated(testData), ]), 0
+    )
+    # after removeDuplicates() Bestand.Einheit is one more column
+    expect_equal(
+      ncol(newDataset),
+      ncol(oldDataset) + 1
+    )
+    expect_is(newDataset$Bestand.Einheit, "numeric")
+    
+    #### test wrapper function
 
   }
 )
