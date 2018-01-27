@@ -23,7 +23,7 @@ ORDER BY transactions.start
     )
     dbDisconnect(appDB)
     
-    kornDB <- files[which(stringr::str_detect(files, ".sqlite$"))]
+    kornDB <- files[which(stringr::str_detect(files, "kornInfo.sqlite"))]
     kornInfo <- dbConnect(SQLite(), file.path(path, kornDB))
     originalInfos <- dbReadTable(kornInfo, "productInfo")
     dbDisconnect(kornInfo)

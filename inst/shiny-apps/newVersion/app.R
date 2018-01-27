@@ -7,125 +7,83 @@ files <- list.files(file.path(path))
 backups <- files[which(stringr::str_detect(files, ".BAK$"))]
 current_backup <- backups[length(backups)] # use newest backup
 
-appDB <- dbConnect(SQLite(), file.path(path, current_backup))
-kornumsatz_origin <<- dbGetQuery(appDB, '
-SELECT strftime(\'%d/%m/%Y\',transactions.start/1000,\'unixepoch\') AS Tag,
-      ROUND(SUM(transaction_products.quantity), 3) AS Menge, 
-      transaction_products.unit AS Einheit,
-      ROUND(transaction_products.price, 2) AS Preis, 
-      transaction_products.title AS Produkt,
-      ROUND(SUM(transaction_products.quantity * transaction_products.price), 3) AS Summe
-FROM transaction_products 
-LEFT JOIN transactions
-      ON transactions._id = transaction_products.transaction_id 
-WHERE transactions.status IS \'final\' AND transaction_products.account_guid IS \'lager\'
-GROUP BY Tag, Produkt, Preis
-ORDER BY transactions.start
-'
+pathToBackup <- file.path(path, current_backup)
+
+kornInfo <- files[which(stringr::str_detect(files, "kornInfo.sqlite"))]
+stopifnot(length(kornInfo) != 1)
+
+secondDatabase <- list(
+  nameTable = "kornumsatz_origin",
+  path = file.path(path, kornInfo)
 )
-dbDisconnect(appDB)
-# add 'Bestand.Einheit' column: cumulative sum for every product
-kornumsatz_origin <- kornumsatz_origin %>%
-  arrange(Produkt) %>%  
-  mutate(Bestand.Einheit = round(ave(Menge, Produkt, FUN=cumsum), 3)) %>%
-  mutate(Tag = as.Date(Tag, format = "%d/%m/%Y")) %>% 
-  arrange(Tag) %>%
-  mutate(Tag = as.character(Tag))
 
-### create new data base
-mydb <- dbConnect(SQLite(), file.path(path, "kornInfo.sqlite"))
-
-dbWriteTable(
-  mydb,
-  "kornumsatz_origin",
-  kornumsatz_origin,
-  overwrite = TRUE
+importData(
+  FROM = pathToBackup,
+  TO = secondDatabase
 )
-# if productInfo already exist, no overwriting won't be necessary
-if (!"productInfo" %in% dbListTables(mydb)) {
-  data("starting_csv")
-  dbWriteTable(
-    mydb, 
-    "productInfo",
-    starting_csv
-  )
-}
+# createShinyList <- function(what = "dt", check = FALSE) {
+#   if (what == "dt") {
+#     if (check == TRUE) return("plot1")
+#     plot_output_list <- list(dataTableOutput("plot1"))
+#   } 
+#   if (what == "plot") {
+#     if (check == TRUE) return("plot2")
+#     plot_output_list <- list(plotOutput("plot2"))
+#   }
+#   
+#   return(plot_output_list)
+# }
 
-# '<<-' important because kornumsatz must be in globalenv() that it can be found by functions in server UI
-kornumsatz <<- dbReadTable(mydb, "kornumsatz_origin") %>%
-  mutate(Tag = as.Date(Tag, format = "%Y-%m-%d"))
-
-addProducts <<- checkDifference(kornumsatz,
-                       dbReadTable(mydb, "productInfo"))
-if (length(addProducts) == 0) {
-  equalise(kornumsatz, 
-           dbReadTable(mydb, "productInfo"),
-           reduce = T,
-           pathTOmydb = file.path(path, "kornInfo.sqlite"))
-}
-
-dbDisconnect(mydb)
-
-
-createShinyList <- function(what = "dt", check = FALSE) {
-  if (what == "dt") {
-    if (check == TRUE) return("plot1")
-    plot_output_list <- list(dataTableOutput("plot1"))
-  } 
-  if (what == "plot") {
-    if (check == TRUE) return("plot2")
-    plot_output_list <- list(plotOutput("plot2"))
-  }
-  
-  return(plot_output_list)
-}
-
-###################################################################################################
-########################################### Shiny UI ##############################################
-###################################################################################################
+###############################################################################
+########################### Shiny UI ##########################################
+###############################################################################
 ui <- shinyUI(
   navbarPage(
     "Kornkammer", 
     id = "tabs", 
     selected=1,
-    #################################### Warenbestand #############################################
+    ####################### Warenbestand ######################################
     tabPanel(
       "Warenbestand", 
-      value = 1, 
+      value = 1,
+      icon = icon("table"),
       # Header
       h2("Du willst wissen, was in der Kornkammer gerade vorrätig ist?"),
       # select input ...
-      fluidRow(
-        selectInput(
-          "choice",
-          "Auswahl",
-          choices = list("tabellarisch" = "dt",
-                         "grafisch" = "plot")
-        )
-      ),
-      br(),
-      fluidRow(
-        column(2), # just for a better look
-        column(4,
-               actionButton("go1", "Nachschlagen")
-        )
-      ),
+      # fluidRow(
+      #   selectInput(
+      #     "choice",
+      #     "Auswahl",
+      #     choices = list("tabellarisch" = "dt",
+      #                    "grafisch" = "plot")
+      #   )
+      # ),
+      # br(),
+      # fluidRow(
+      #   column(2), # just for a better look
+      #   column(4,
+      #          actionButton("go1", "Nachschlagen")
+      #   )
+      # ),
       # Main Panel 
       fluidRow(
-        uiOutput("plots")
+        dataTableOutput("storage")
       )
     ),
-    
-    ############################# new data ########################################################
+    ############################# new data ####################################
     tabPanel(
       "Neuen Datensatz abgleichen", 
       value = 2, 
-      icon = icon("upload"),
+      icon = icon("tasks"),
       # Header 
       h2("Hier kannst du einen neuen Datensatz auf Konsistenz überprüfen"),
-      h5(em("Falls es seit dem letzten Datensatz neue Produkte gegeben hat, wirst du hier durch eine Benutzeroberfläche geleitet, mittels derer du die neuen Produkte einer Produktgruppe und einem Lieferanten zuordnen kannst.")),
+      h5(em("Falls es seit dem letzten Datensatz neue Produkte gegeben hat, ",
+            "wirst du hier durch eine Benutzeroberfläche geleitet, mittels ",
+            "derer du die neuen Produkte einer Produktgruppe und einem ",
+            "Lieferanten zuordnen kannst.")),
       br(),
-      # first row is for name of product in the FoodCoApp and how the product shall be called in future
+      # first row is for name of a product in the FoodCoApp and how the product
+      # shall be called in future
       fluidRow(
         column(
           4,
@@ -144,14 +102,22 @@ ui <- shinyUI(
               choices = c("Bitte wählen" = "",
                           "nicht beachten", "neues Produkt")
             ),
-            helpText("Wähle 'neues Produkt' wenn wir es wirklich noch nie in der KoKa hatten und nicht in der Liste zu finden ist. Wähle 'nicht beachten', wenn man das Produkt später nicht im Warenbestandsverlauf sehen können soll.")
+            helpText(
+              "Wähle 'neues Produkt' wenn wir es wirklich noch nie in der ",
+              "Koka hatten und nicht in der Liste zu finden ist. Wähle 'nicht ",
+              "beachten', wenn man das Produkt später nicht im ",
+              "Warenbestandsverlauf sehen können soll."
+            )
           )
         ),
         column(
           4,
           conditionalPanel(
-            condition = "input.newproducts != '' && input.prodsummary == 'neues Produkt'",
-            actionButton("go_prod", "Neues Produkt eintragen", icon = icon("send"))
+            condition = "input.newproducts != '' && 
+            input.prodsummary == 'neues Produkt'",
+            actionButton(
+              "go_prod", "Neues Produkt eintragen", icon = icon("send")
+            )
           )
         )
       ),
@@ -160,34 +126,48 @@ ui <- shinyUI(
         column(
           4,
           conditionalPanel(
-            condition = "input.newproducts != '' && input.prodsummary != '' && input.prodsummary != 'neues Produkt' && input.prodsummary != 'nicht beachten'",
+            condition = "input.newproducts != '' && input.prodsummary != '' && 
+            input.prodsummary != 'neues Produkt' && 
+            input.prodsummary != 'nicht beachten'",
             selectizeInput(
               "deliverer", "Lieferant Nr. 1",
               choices = c("Bitte wählen" = "",
                           levels(starting_csv$Lieferant),
                           "neuer Lieferant")
             ),
-            helpText("Wähle 'neuer Lieferant', um einen neuen Lieferanten hinzuzufügen, bei dem zukünftig dieses Produkt bestellt werden soll.")
+            helpText(
+              "Wähle 'neuer Lieferant', um einen neuen Lieferanten hinzuzufügen,",
+              "bei dem zukünftig dieses Produkt bestellt werden soll."
+            )
           )
         ),
         column(
           4,
           conditionalPanel(
-            condition = "input.newproducts != '' && input.prodsummary != '' && input.prodsummary != 'neues Produkt' && input.prodsummary != 'nicht beachten'",
+            condition = "input.newproducts != '' && input.prodsummary != '' && 
+            input.prodsummary != 'neues Produkt' && 
+            input.prodsummary != 'nicht beachten'",
             selectizeInput(
               "deliverer2", "Lieferant Nr. 2 (optional)",
               choices = c("Bitte wählen" = "",
                           levels(starting_csv$Lieferant),
                           "neuer Lieferant")
             ),
-            helpText("Wähle nichts aus, wenn es keinen zweiten, alternativen Lieferanten für dieses Produkt gibt oder füge einen neuen zweiten Lieferanten für dieses Produkt hinzu.")
+            helpText(
+              "Wähle nichts aus, wenn es keinen zweiten, alternativen Lieferanten",
+              "für dieses Produkt gibt oder füge einen neuen zweiten Lieferanten",
+              "für dieses Produkt hinzu."
+            )
           )
         ),
         column(
           4,
           conditionalPanel(
-            condition = "input.deliverer == 'neuer Lieferant' || input.deliverer2 == 'neuer Lieferant'",
-            actionButton("go_deliv", "neue(n) Lieferanten eintragen", icon = icon("send"))
+            condition = "input.deliverer == 'neuer Lieferant' || 
+            input.deliverer2 == 'neuer Lieferant'",
+            actionButton(
+              "go_deliv", "neue(n) Lieferanten eintragen", icon = icon("send")
+            )
           )
         )
       ),
@@ -196,21 +176,28 @@ ui <- shinyUI(
         column(
           4,
           conditionalPanel(
-            condition = "input.newproducts != '' && input.prodsummary != '' && input.prodsummary != 'neues Produkt' && input.prodsummary != 'nicht beachten'",
+            condition = "input.newproducts != '' && input.prodsummary != '' && 
+            input.prodsummary != 'neues Produkt' && 
+            input.prodsummary != 'nicht beachten'",
             selectizeInput(
               "prodgroup", "Produktgruppe",
               choices = c("Bitte wählen" = "",
                           levels(starting_csv$Produktgruppe),
                           "neue Produktgruppe")
             ),
-            helpText("Wähle 'neue Produktgruppe', um eine neue Produktgruppe hinzuzufügen.")
+            helpText(
+              "Wähle 'neue Produktgruppe', um eine neue Produktgruppe ",
+              "hinzuzufügen."
+            )
           )
         ),
         column(
           4,
           conditionalPanel(
             condition = "input.prodgroup == 'neue Produktgruppe'",
-            actionButton("go_group", "neue Produktgruppe hinzufügen", icon = icon("send"))
+            actionButton(
+              "go_group", "neue Produktgruppe hinzufügen", icon = icon("send")
+            )
           )
         )
       ),
@@ -219,7 +206,9 @@ ui <- shinyUI(
         column(
           4,
           conditionalPanel(
-            condition = "input.newproducts != '' && input.prodsummary != '' && input.prodsummary != 'neues Produkt' && input.prodsummary != 'nicht beachten'",
+            condition = "input.newproducts != '' && input.prodsummary != '' && 
+            input.prodsummary != 'neues Produkt' && 
+            input.prodsummary != 'nicht beachten'",
             selectInput(
               "bulksize", "Verpackungseinheit",
               choices = c("Bitte wählen" = "",
@@ -242,7 +231,8 @@ ui <- shinyUI(
         column(
           4,
           conditionalPanel(
-            condition = "input.bulksize != '' || input.prodsummary == 'nicht beachten'",
+            condition = "input.bulksize != '' || 
+            input.prodsummary == 'nicht beachten'",
             actionButton("go2", "Eintragen", icon = icon("send"))
           )
         ),
@@ -256,16 +246,21 @@ ui <- shinyUI(
           4,
           conditionalPanel(
             condition = "input.options == true",
-            downloadButton("download", "Starting_CSV exportieren", icon = icon("send"))
+            downloadButton(
+              "download", "Starting_CSV exportieren", icon = icon("send")
+            )
           )
         )
       ),
-      ############################### create modals #################################################
+      ############################### create modals ###########################
       bsModal(
         "newprodMOD", "Neuen Produktnamen eintragen",
         trigger = "go_prod",
         textInput("newprod", "zukünftiger Produktname"),
-        helpText("Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."),
+        helpText(
+          "Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name",
+          "tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."
+        ),
         actionButton("entry_prod", "Produktname eintragen", icon = icon("send"))
       ),
       bsModal(
@@ -277,23 +272,34 @@ ui <- shinyUI(
         ),
         conditionalPanel(
           condition = "input.deliverer2 == 'neuer Lieferant'",
-          textInput("newdeliv2", "zukünftiger Lieferant Nr. 2 (optional)", value = NULL)
+          textInput(
+            "newdeliv2", "zukünftiger Lieferant Nr. 2 (optional)", value = NULL
+          )
         ),
-        helpText("Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."),
+        helpText(
+          "Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name",
+          " tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."
+        ),
         actionButton("entry_deliv", "Lieferanten eintragen", icon = icon("send"))
       ),
       bsModal(
         "newgroupMOD", "Neue Produktgruppe hinzufügen",
         trigger = "go_group",
         textInput("newgroup", "zukünftige Produktgruppe"),
-        helpText("Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."),
+        helpText(
+          "Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name",
+          " tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."
+        ),
         actionButton("entry_group", "Produktgruppe eintragen", icon = icon("send"))
       ),
       bsModal(
         "newbulkMOD", "Neue VPE hinzufügen",
         trigger = "go_bulk",
         numericInput("newbulk", "zukünftige VPE", min = 0.1, max = 25, step = 0.1, value = 25),
-        helpText("Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."),
+        helpText(
+          "Bevor du auf 'eintragen' klickst, vergewissere dich, dass der Name",
+          " tatsächlich richtig (geschrieben) ist. Danach gibt's kein zurück."
+        ),
         actionButton("entry_bulk", "VPE eintragen", icon = icon("send"))
       )
       
@@ -302,17 +308,17 @@ ui <- shinyUI(
   ))
 
 
-###################################################################################################
-####################################### Shiny Server ##############################################
-###################################################################################################
+###############################################################################
+############################ Shiny Server #####################################
+###############################################################################
 
 
 server <- shinyServer(function(input, output, session){
   
-  # first at all: make starting_csv reactive
+  # first of all: make starting_csv reactive
   rV <- reactiveValues(
-    productInfo = dbReadTable(
-      dbConnect(SQLite(), file.path(path, "kornInfo.sqlite")),
+    productInfo = DBI::dbReadTable(
+      DBI::dbConnect(RSQLite::SQLite(), file.path(path, "kornInfo.sqlite")),
       "productInfo"
     ),
     addProducts = get("addProducts")
