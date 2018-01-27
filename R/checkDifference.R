@@ -5,8 +5,10 @@
 checkDifference <- function(dataset, productInfo) {
   # check out if there are any new products
   kornumsatz <- dataset
-  dif <- dplyr::setdiff(unique(kornumsatz$Produkt), 
-                        unique(productInfo$Produkte_App))
+  dif <- dplyr::setdiff(
+    unique(kornumsatz$Produkt), 
+    unique(productInfo$Produkte_App)
+  )
   
   return(dif)
 }

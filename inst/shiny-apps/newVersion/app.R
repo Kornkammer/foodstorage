@@ -1,7 +1,7 @@
 ###################################################################################################
 ###################### read kornumsatz ############################################################
 ###################################################################################################
-path <<- "/home/simon/Documents/Rprojects"
+path <- "/home/simon/Documents/Rprojects"
 files <- list.files(file.path(path))
 # filter all backups (files which end up with .BAK)
 backups <- files[which(stringr::str_detect(files, ".BAK$"))]
@@ -11,10 +11,13 @@ pathToBackup <- file.path(path, current_backup)
 
 kornInfo <- files[which(stringr::str_detect(files, "kornInfo.sqlite"))]
 stopifnot(length(kornInfo) != 1)
+# <<- necessary because its reactive in the server part
+pathToKornInfo <<- file.path(path, kornInfo) 
+
 
 secondDatabase <- list(
   nameTable = "kornumsatz_origin",
-  path = file.path(path, kornInfo)
+  path = pathToKornInfo
 )
 
 importData(
@@ -317,40 +320,46 @@ server <- shinyServer(function(input, output, session){
   
   # first of all: make starting_csv reactive
   rV <- reactiveValues(
-    productInfo = DBI::dbReadTable(
-      DBI::dbConnect(RSQLite::SQLite(), file.path(path, "kornInfo.sqlite")),
-      "productInfo"
-    ),
-    addProducts = get("addProducts")
+    storage = datatable(matrix(c(1:10), nrow = 2)), # example data
+    productInfo = datatable(matrix(c(1:10), nrow = 2)), # example data
+    addProducts = c("example")
     # print(head(get("productInfo")))
   )
   
-  output$plots <- renderUI({
-    # Create a list of `plotOutput` objects (depending on current())
-    plot_output_list <- createShinyList(input$choice)
-    # Place the plot output inside a shiny `tagList()`
-    do.call(tagList, plot_output_list)
+  observeEvent(tabs, {
+    #### load data from kornInfo.sqlite ####
+    kornInfo <- DBI::dbConnect(RSQlite::SQLite(), pathToKornInfo)
+    originalData <- DBI::dbReadTable(
+      kornInfo,
+      "kornumsatz_origin"
+    )
+    productInfo <- DBI::dbReadTable(
+      kornInfo,
+      "productInfo"
+    )
+    
+    #### check difference between original data and product information ####
+    dif <- checkDifference(originalData, productInfo)
+    
+    # if there is no difference, data are up to date
+    if (length(dif) == 0) {
+      editData <- startupSettings(originalData, productInfo)
+      
+      # write edited data into database
+      DBI::dbWriteTable(
+        kornInfo,
+        "kornumsatz_edit",
+        editData,
+        overwrite = T
+      )
+      rV$storage <- datatable(editData)
+      DBI::dbDisconnect(kornInfo)
+    } 
+    
+    rV$productInfo <- datatable(productInfo)
+    rV$addProducts <- dif
   })
   
-  # Every time a plot changes (button is clicked), re-generate the render functions for all the plots
-  observeEvent(
-    input$go1,
-    label = "renderingPlots", {
-      plotname <- createShinyList(input$choice, check = T)
-      
-      if (plotname == "plot1") {
-        output[[plotname]] <- renderDataTable({
-          foodstorage::currentStorage(levels(kornumsatz$Produkt), rawlist = TRUE)
-        })
-      }
-      
-      if (plotname == "plot2") {
-        output[[plotname]] <- renderPlot({
-          foodstorage::currentStorage(levels(kornumsatz$Produkt))
-        })
-      }
-    }
-  )
   
   #################################################################################################
   ############################ update 'updating productInfo UI' ##################################
