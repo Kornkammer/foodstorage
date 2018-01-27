@@ -6,7 +6,7 @@ test_that(
     # filter all backups (files which end up with .BAK)
     backup <- files[which(stringr::str_detect(files, ".BAK$"))]
     appDB <- dbConnect(SQLite(), file.path(path, backup))
-    testData <- dbGetQuery(appDB, '
+    originalData <- dbGetQuery(appDB, '
 SELECT strftime(\'%d/%m/%Y\',transactions.start/1000,\'unixepoch\') AS Tag,
       ROUND(SUM(transaction_products.quantity), 3) AS Menge, 
       transaction_products.unit AS Einheit,
@@ -25,16 +25,20 @@ ORDER BY transactions.start
     
     kornDB <- files[which(stringr::str_detect(files, ".sqlite$"))]
     kornInfo <- dbConnect(SQLite(), file.path(path, kornDB))
-    testInfos <- dbReadTable(kornInfo, "productInfo")
+    originalInfos <- dbReadTable(kornInfo, "productInfo")
     dbDisconnect(kornInfo)
 
-    #### add two columns: position and bulksize and check this ####
-    resultEditDataset <- editDataset(testData, testInfos, test = TRUE)
-    newDataset <- resultEditDataset$editData
+    #### add three columns: ID, product summary and bulksize ####
+    tmpData <- editDataset(originalData, originalInfos)
+    newDataset <- tmpData$editData
     expect_is(newDataset, "data.frame")
     expect_equal(
       ncol(newDataset),
-      ncol(testData) + 3
+      ncol(originalData) + 3
+    )
+    expect_equal(
+      colnames(newDataset),
+      c(colnames(originalData), "ID", "Produkt_Zusammenfassung", "VPE")
     )
     expect_is(newDataset$ID, "integer")
     expect_is(newDataset$VPE, "numeric")
@@ -48,36 +52,68 @@ ORDER BY transactions.start
       length(unique(newDataset$Produkt)),
       length(unique(newDataset$Produkt_Zusammenfassung))
     )
+    # expect same number of rows in newDataset like in original Data
+    expect_equal(
+      nrow(newDataset),
+      nrow(originalData)
+    )
+    
     #### expect no double dates and products
     duplicates <- identifyDuplicates(newDataset)
-    summariseQuantity <- resultEditDataset$summariseQuantity
+    summariseQuantity <- tmpData$summariseQuantity
     expect_equal(
       nrow(newDataset),
       length(duplicates) + nrow(summariseQuantity)
     )
     # dataset resulting from editDataset() without ID of duplicates = 
-    #   dataset resulting from reomveDuplicates
+    #   dataset resulting from addCumulativeStorage()
     oldDataset <- newDataset
     newDataset <- addCumulativeStorage(oldDataset, duplicates, summariseQuantity)
     expect_equal(
       nrow(oldDataset %>% filter(!ID %in% duplicates)),
       nrow(newDataset)
     )
-    # after removeDuplicates() are no more duplicates in the data
+    expect_equal(
+      oldDataset[!oldDataset$ID %in% duplicates, ]$ID,
+      newDataset$ID
+    )
+    expect_is(newDataset$ID, "integer")
+    # after addCumulativeStorage() no more duplicates are in the data
     testData <- newDataset %>%
       group_by(Produkt_Zusammenfassung, Tag) %>%
       select(Produkt_Zusammenfassung, Tag)
     expect_equal(
       nrow(testData[duplicated(testData), ]), 0
     )
-    # after removeDuplicates() Bestand.Einheit is one more column
+    # after addCumulativeStorage() Bestand.Einheit is one more column
     expect_equal(
-      ncol(newDataset),
-      ncol(oldDataset) + 1
+      colnames(newDataset),
+      c(colnames(oldDataset), "Bestand.Einheit")
     )
     expect_is(newDataset$Bestand.Einheit, "numeric")
+    ##### cumulative storage function does its job well #####
+    # filter products "with duplicates"
+    testProducts <- oldDataset %>%
+      filter(ID %in% duplicates) %>%
+      distinct(Produkt_Zusammenfassung) %>%
+      unlist(use.names = F)
+    # filter newDataset
+    testData <- newDataset %>%
+      filter(Produkt_Zusammenfassung %in% testProducts) %>%
+      group_by(Produkt_Zusammenfassung) %>%
+      mutate(testCumSum = round(ave(Menge, FUN = cumsum), 3)) %>%
+      arrange(ID)
+    # cumsums should be the same
+    expect_equal(
+      testData$testCumSum,
+      testData$Bestand.Einheit
+    )
+    #### at least: test wrapper function startupSettings() ####
+    testData <- startupSettings(originalData, originalInfos)
+    expect_equal(
+      testData,
+      newDataset
+    )
     
-    #### test wrapper function
-
   }
 )
