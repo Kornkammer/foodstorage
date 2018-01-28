@@ -10,7 +10,8 @@ current_backup <- backups[length(backups)] # use newest backup
 pathToBackup <- file.path(path, current_backup)
 
 kornInfo <- files[which(stringr::str_detect(files, "kornInfo.sqlite"))]
-stopifnot(length(kornInfo) != 1)
+print(length(kornInfo))
+stopifnot(length(kornInfo) == 1)
 # <<- necessary because its reactive in the server part
 pathToKornInfo <<- file.path(path, kornInfo) 
 
@@ -320,13 +321,12 @@ server <- shinyServer(function(input, output, session){
   
   # first of all: make starting_csv reactive
   rV <- reactiveValues(
-    storage = datatable(matrix(c(1:10), nrow = 2)), # example data
     productInfo = datatable(matrix(c(1:10), nrow = 2)), # example data
     addProducts = c("example")
     # print(head(get("productInfo")))
   )
   
-  observeEvent(tabs, {
+  currentData <- eventReactive(tabs, {
     #### load data from kornInfo.sqlite ####
     kornInfo <- DBI::dbConnect(RSQlite::SQLite(), pathToKornInfo)
     originalData <- DBI::dbReadTable(
@@ -352,17 +352,42 @@ server <- shinyServer(function(input, output, session){
         editData,
         overwrite = T
       )
-      rV$storage <- datatable(editData)
       DBI::dbDisconnect(kornInfo)
-    } 
-    
-    rV$productInfo <- datatable(productInfo)
-    rV$addProducts <- dif
+      
+      return(editData)
+      
+    } else {
+      return(list(
+        originalData = originalData,
+        productInfo = datatable(productInfo),
+        addProducts = dif
+      ))
+    }
   })
   
   
-  #################################################################################################
-  ############################ update 'updating productInfo UI' ##################################
+  output$storage <- renderDataTable({
+    if (is.data.frame(currentData())) {
+      # show a datatable including product infos
+      datatable(currentData())
+    }
+    if (is.list(currentData())) {
+      # show a datatable with the current food storage without product infos
+      data <- currentData()$originalData
+      datatable(data)
+    }
+  })
+  
+  observeEvent(currentData(), {
+    if (is.list(currentData())) {
+      rV$productInfo <- currentData()$productInfo
+      rV$addProducts <- currentData()$addProducts
+    }
+  })
+  
+  
+  #############################################################################
+  ################## update 'updating productInfo UI' #########################
   
   # update all inputs after newproducts when some newproducts changes
   observeEvent(input$newproducts, {
