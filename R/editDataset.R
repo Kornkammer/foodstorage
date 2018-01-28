@@ -13,7 +13,8 @@ editDataset <- function(dataset, productInfo) {
     mutate(VPE = as.numeric(Verpackungseinheit)) %>%
     mutate(Produkt_Zusammenfassung = as.character(Produkte_Zusammenfassung)) %>%
     mutate(Produkt = as.character(Produkte_App)) %>%
-    select(Produkt, Produkt_Zusammenfassung, VPE)
+    select(Produkt, Produkt_Zusammenfassung, Lieferant, Lieferant2, 
+           Produktgruppe, VPE)
   
   editData <- dataset %>%
     mutate(Tag = as.Date(Tag, format = "%d/%m/%Y", origin = "1970-01-01")) %>%

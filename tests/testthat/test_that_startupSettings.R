@@ -34,11 +34,12 @@ ORDER BY transactions.start
     expect_is(newDataset, "data.frame")
     expect_equal(
       ncol(newDataset),
-      ncol(originalData) + 3
+      ncol(originalData) + 6
     )
     expect_equal(
       colnames(newDataset),
-      c(colnames(originalData), "ID", "Produkt_Zusammenfassung", "VPE")
+      c(colnames(originalData), "ID", "Produkt_Zusammenfassung", 
+        "Lieferant", "Lieferant2", "Produktgruppe", "VPE")
     )
     expect_is(newDataset$ID, "integer")
     expect_is(newDataset$VPE, "numeric")

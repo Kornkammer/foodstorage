@@ -1,6 +1,5 @@
-# test currentStroage
 test_that(
-  "currentStorage is doing well", {
+  "prepareDatatable prepares the dt perfect for shiny", {
     #### load dataset ####
     path <- system.file("data", package = "foodstorage")
     files <- list.files(path)
@@ -31,34 +30,32 @@ ORDER BY transactions.start
     
     kornumsatz <- startupSettings(originalData, originalInfos)
     
-    Bode <- sort(c(
-      "Basilikum", "Basitom", "Basmati Weiß", "Blaumohn", "Buchweizenmehl", 
-      "Couscous", "Currychini", "Kichererbsen", "Kräuter der Provence", "Mepfel",
-      "Oregano", "Paprika Edelsüß", "Risottoreis", "Rosmarin", 
-      "Rote Beete Meerettich", "Linsen Rot", "Schwarzkümmel", "Sendi", "Thymian", 
-      "Zwiebelschmelz"
-    ))
-    
-    #### test currentStorage ####
-    testBode <- currentStorage(kornumsatz, group = Bode) %>%
+    #### test prepareDatatable ####
+    # print(prepareDatatable(kornumsatz))
+    testData <- prepareDatatable(kornumsatz, test = T) %>%
+      arrange(Zusammenfassung)
+
+    testData2 <- kornumsatz %>%
       arrange(Produkt_Zusammenfassung)
     expect_equal(
-      unique(testBode$Produkt_Zusammenfassung),
-      Bode
+      unique(testData$Zusammenfassung),
+      unique(testData2$Produkt_Zusammenfassung)
     )
-    testBode <- testBode %>%
-      count(Produkt_Zusammenfassung)
     expect_equal(
-      unique(testBode$n),
-      1
+      colnames(testData),
+      c("Produktname_App", "Zusammenfassung", "Lieferant", "Lieferant2",
+        "Produktgruppe", "Warenbestand", "Einheit", "Warenbestand.Prozent")
     )
-    
-    #### test without group input
-    testData <- currentStorage(kornumsatz) %>%
-      count(Produkt_Zusammenfassung)
-    expect_equal(
-      unique(testData$n),
-      1
+    ### filter paramter works
+    testData <- prepareDatatable(kornumsatz, filter = "available", test = T)
+    expect_length(
+      testData$Warenbestand[which(testData$Warenbestand <= 0)],
+      0
+    )
+    testData <- prepareDatatable(kornumsatz, filter = "empty", test = T)
+    expect_length(
+      testData$Warenbestand[which(testData$Warenbestand > 0)],
+      0
     )
   }
 )

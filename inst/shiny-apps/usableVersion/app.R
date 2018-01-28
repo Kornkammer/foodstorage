@@ -25,6 +25,13 @@ importData(
   TO = secondDatabase
 )
 
+### set filter options
+filter <- c(
+  "alles" = "everything",
+  "nur verfügbare Lebensmittel" = "available",
+  "alle leeren LM" = "empty"
+)
+
 ###############################################################################
 ########################### Shiny UI ##########################################
 ###############################################################################
@@ -40,10 +47,18 @@ ui <- shinyUI(
       icon = icon("table"),
       # Header
       h2("Du willst wissen, was in der Kornkammer gerade vorrätig ist?"),
-      
+      br(), # empty row
+      fluidRow(
+        selectInput(
+          "filter",
+          "Welche Produkte sollen angezeigt werden?",
+          choices = filter
+        )
+      ),
+      br(),
       # dataTable = mainPanel
       fluidRow(
-        DT::dataTableOutput("table1")
+        DT::dataTableOutput("storage")
       )
     ) # end of tabPanel == 1
   ) # end of navbarPage
@@ -62,7 +77,6 @@ server <- shinyServer(function(input, output, session){
     # print(head(get("productInfo")))
   )
   currentData <- eventReactive(input$tabs, {
-    print(input$tabs)
     #### load data from kornInfo.sqlite ####
     kornInfo <- DBI::dbConnect(RSQLite::SQLite(), pathToKornInfo)
     originalData <- DBI::dbReadTable(
@@ -102,10 +116,13 @@ server <- shinyServer(function(input, output, session){
   })
   
   
-  output$table1 <- DT::renderDataTable({
+  output$storage <- DT::renderDataTable({
     if (is.data.frame(currentData())) {
     # show a datatable including product infos
-      return(currentData())
+      return(prepareDatatable(
+        currentData(),
+        filter = input$filter
+      ))
     }
     if (is.list(currentData())) {
       # show a datatable with the current food storage without product infos
