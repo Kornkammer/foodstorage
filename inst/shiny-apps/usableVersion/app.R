@@ -1,7 +1,7 @@
 ###################################################################################################
 ###################### read kornumsatz ############################################################
 ###################################################################################################
-path <- "/home/simon/Documents/Rprojects"
+path <- "/home/simon/Documents/Rprojects/unknownProducts/"
 files <- list.files(file.path(path))
 # filter all backups (files which end up with .BAK)
 backups <- files[which(stringr::str_detect(files, ".BAK$"))]
