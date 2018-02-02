@@ -66,7 +66,7 @@ ui <- shinyUI(
       "Produktinformationen",
       value = 2,
       icon = icon("tasks"),
-      h2("Hier findet ihr alle Produktinformationen zum Bearbeiten."),
+      h2("Hier findet ihr alle Produktinformationen zum Bearbeiten"),
       br(), # empty row
       
       fluidRow(
@@ -82,9 +82,8 @@ ui <- shinyUI(
 
 
 server <- shinyServer(function(input, output, session){
-  
-  
-  
+  #############################################################################
+  ######################## reactive part for all tab panels ###################
   # first of all: make starting_csv reactive
   rV <- reactiveValues(
     productInfo = datatable(matrix(c(1:10), nrow = 2)), # example data
@@ -119,38 +118,68 @@ server <- shinyServer(function(input, output, session){
       )
       DBI::dbDisconnect(kornInfo)
       
-      return(editData)
+      return(list(
+        editData = editData,
+        productInfo = datatable(productInfo)
+      ))
       
     } else {
+      DBI::dbDisconnect(kornInfo)
+      
+      difDF <- tibble(
+        Produkte_App = dif,
+        Produkte_Zusammenfassung = rep("", length(dif)),
+        Lieferant = rep("", length(dif)),
+        Lieferant2 = rep("", length(dif)),
+        Produktgruppe = rep("", length(dif)),
+        Verpackungseinheit = rep(NA, length(dif))
+      )
+      
+      newProducts <- bind_rows(productInfo, difDF)
       return(list(
         originalData = originalData,
         productInfo = datatable(productInfo),
-        addProducts = dif
+        addProducts = dif,
+        newProducts = newProducts
       ))
+    }
+  })
+  # update reactive values
+  observeEvent(currentData(), {
+    if (is.list(currentData())) {
+      rV$productInfo <- currentData()$productInfo
+      rV$addProducts <- currentData()$addProducts
     }
   })
   
   
+  #############################################################################
+  ############# reactive part specially for foodstorage panel #################
   output$storage <- DT::renderDataTable({
-    if (is.data.frame(currentData())) {
-    # show a datatable including product infos
+    if (length(currentData()) == 2) {
+      # show a datatable including product infos
       return(prepareDatatable(
-        currentData(),
+        currentData()$editData,
         filter = input$filter
       ))
     }
-    if (is.list(currentData())) {
+    if (length(currentData()) == 4) {
       # show a datatable with the current food storage without product infos
       data <- currentData()$originalData
       return(data)
     }
   })
   
-  observeEvent(currentData(), {
-    if (is.list(currentData())) {
-      rV$productInfo <- currentData()$productInfo
-      rV$addProducts <- currentData()$addProducts
+  #############################################################################
+  ################## reactive part specially for product information ##########
+  output$productInfo <- DT::renderDataTable({
+    if (length(currentData()) == 2) {
+      data <- currentData()$productInfo
     }
+    if (length(currentData()) == 4) {
+      data <- currentData()$newProducts
+    }
+    return(data)
   })
   
 }) # end of server part
