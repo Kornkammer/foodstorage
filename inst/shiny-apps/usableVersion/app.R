@@ -58,9 +58,21 @@ ui <- shinyUI(
       br(),
       # dataTable = mainPanel
       fluidRow(
-        DT::dataTableOutput("storage")
+        column(12, DT::dataTableOutput("storage"))
       )
-    ) # end of tabPanel == 1
+    ), # end of tabPanel == 1
+    
+    tabPanel(
+      "Produktinformationen",
+      value = 2,
+      icon = icon("tasks"),
+      h2("Hier findet ihr alle Produktinformationen zum Bearbeiten."),
+      br(), # empty row
+      
+      fluidRow(
+        column(12, DT::dataTableOutput("productInfo"))
+      )
+    )
   ) # end of navbarPage
 ) # end of shinyUI
 
@@ -70,6 +82,9 @@ ui <- shinyUI(
 
 
 server <- shinyServer(function(input, output, session){
+  
+  
+  
   # first of all: make starting_csv reactive
   rV <- reactiveValues(
     productInfo = datatable(matrix(c(1:10), nrow = 2)), # example data
