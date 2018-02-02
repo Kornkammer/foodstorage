@@ -69,6 +69,8 @@ ui <- shinyUI(
       h2("Hier findet ihr alle Produktinformationen zum Bearbeiten"),
       br(), # empty row
       
+      fluidRow(column(4, uiOutput("productInfoInput"))),
+      
       fluidRow(
         column(12, DT::dataTableOutput("productInfo"))
       )
@@ -135,7 +137,8 @@ server <- shinyServer(function(input, output, session){
         Verpackungseinheit = rep(NA, length(dif))
       )
       
-      newProducts <- bind_rows(productInfo, difDF)
+      newProducts <- bind_rows(productInfo, difDF) %>%
+        arrange(Produkte_Zusammenfassung)
       return(list(
         originalData = originalData,
         productInfo = datatable(productInfo),
@@ -172,6 +175,16 @@ server <- shinyServer(function(input, output, session){
   
   #############################################################################
   ################## reactive part specially for product information ##########
+  # output$productInfoInput <- renderUI({
+  #   if (length(currentData()) == 4) {
+  #     checkboxGroupInput(
+  #       "what", "Alle oder nur fehlende Produkte anzeigen?", 
+  #       choices = c("alle", "nur fehlende Produkte"), selected = "alle"
+  #     )
+  #   }
+  # })
+  
+  
   output$productInfo <- DT::renderDataTable({
     if (length(currentData()) == 2) {
       data <- currentData()$productInfo
