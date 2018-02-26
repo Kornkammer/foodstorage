@@ -1,0 +1,143 @@
+---
+title: "Verbrauch der Kornkammer"
+author: "Kornkammer e.V."
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Durchschnittsverzehr der Kornkammer
+
+Der durchschnittliche Verzehr aller Kornkammer Mitglieder im Zeitraum **November 2015 bis September 2017** sieht wie folgt aus:
+
+```{r, echo = FALSE, message=FALSE}
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+library(tidyr)
+library(DBI)
+library(RSQLite)
+#### load data ####
+path <- system.file("data", package = "foodstorage")
+files <- list.files(path)
+# filter all backups (files which end up with .BAK)
+backup <- files[which(stringr::str_detect(files, ".BAK$"))]
+appDB <- dbConnect(SQLite(), file.path(path, backup))
+originalData <- dbGetQuery(appDB, '
+  SELECT strftime(\'%d/%m/%Y\',transactions.start/1000,\'unixepoch\') AS Tag,
+  ROUND(SUM(transaction_products.quantity), 3) AS Menge, 
+  transaction_products.unit AS Einheit,
+  ROUND(transaction_products.price, 2) AS Preis, 
+  transaction_products.title AS Produkt,
+  ROUND(SUM(transaction_products.quantity * transaction_products.price), 3) AS Summe
+  FROM transaction_products 
+  LEFT JOIN transactions
+    ON transactions._id = transaction_products.transaction_id 
+  WHERE transactions.status IS \'final\' AND transaction_products.account_guid IS \'lager\'
+  GROUP BY Tag, Produkt, Preis
+  ORDER BY transactions.start
+'
+)
+dbDisconnect(appDB)
+    
+kornDB <- files[which(stringr::str_detect(files, "kornInfo.sqlite"))]
+kornInfo <- dbConnect(SQLite(), file.path(path, kornDB))
+originalInfos <- dbReadTable(kornInfo, "productInfo")
+dbDisconnect(kornInfo)
+
+rm(appDB, kornInfo)
+rm(backup, files, kornDB, path)
+#### data wrangling ####
+verzehr <- originalData %>%
+  mutate(Tag = as.Date(Tag, format = "%d/%m/%Y", origin = "1970-01-01")) %>%
+  filter(Menge < 0) %>%
+  group_by(Tag) %>%
+  summarise(Menge = abs(sum(Menge))) 
+
+ggplot(verzehr, aes(x = Tag, y = Menge)) +
+  geom_point() +
+  stat_smooth() +
+  ylab("verzehrte Menge [kg / L / St]") +
+  xlab("Zeit")
+```
+
+Wie der Grafik zu entnehmen ist, wird die verzehrte Menge in Kilo, Liter und Stück zusammengerechnet angezeigt. 
+
+## Verzehr tabellarisch dargestellt
+
+Und hier zur Übersicht der Verzehr in tabellarischer Form dargestellt, zusammengefasst pro Monat:
+
+```{r, echo = FALSE, message=FALSE}
+verzehrZusammengefasst <- verzehr %>%
+  group_by(Jahr = year(Tag), Monat = month(Tag, label = T, abbr = F)) %>%
+  summarise("Verzehr in Kilo" = abs(sum(Menge))) %>%
+  ungroup() %>%
+  spread(key = Jahr, value = `Verzehr in Kilo`)
+
+knitr::kable(verzehrZusammengefasst)
+```
+
+## Verzehr gemäß Produktgruppenaufteilung
+
+Teilt man den Verzehr nach Produktgruppen auf, zeigt sich folgendes Bild:
+``` {r productgroups, echo = F, message = F}
+library(foodstorage)
+kornumsatz <- startupSettings(originalData, originalInfos)
+verzehr <- kornumsatz %>%
+  filter(Menge < 0, Produktgruppe != "NI") %>%
+  group_by(Produktgruppe, Tag) %>%
+  summarise(Verzehr = abs(sum(Menge))) %>%
+  group_by(Jahr = year(Tag), Produktgruppe) %>%
+  summarise("Verzehr in Kilo" = abs(sum(Verzehr))) %>%
+  ungroup() %>%
+  spread(key = Jahr, value = `Verzehr in Kilo`)
+
+knitr::kable(verzehr)
+```
+
+## Verzehr gemäß Lieferanten
+
+``` {r deliverer, echo = F, message = F}
+verzehr <- kornumsatz %>%
+  filter(Menge < 0, Lieferant != "NI") %>%
+  mutate(Lieferant = replace(Lieferant, which(Lieferant == "St. Georgener Bauer"),
+                             "Biohof Lex"),
+         Lieferant = replace(Lieferant, which(Lieferant == "Kaiserstühler Hof"),
+                             "Humberg Hof")) %>%
+  group_by(Lieferant, Tag) %>%
+  summarise(Verzehr = abs(sum(Menge))) %>%
+  group_by(Jahr = year(Tag), Lieferant) %>%
+  summarise(Verzehr = abs(sum(Verzehr))) %>%
+  mutate(Verzehr = replace(Verzehr, 
+                           which(Lieferant == "Hofgut Storzeln" & Jahr == 2016),
+                           480),
+         Verzehr = replace(Verzehr,
+                           which(Lieferant == "Hofgut Storzeln" & Jahr == 2017),
+                           910)) %>%
+  rename("Verzehr in Kilo" = Verzehr) %>%
+  ungroup() %>%
+  spread(key = Jahr, value = `Verzehr in Kilo`)
+
+knitr::kable(verzehr)
+
+```
+
+## Verbrauch jedes einzelnen Produkts
+``` {r products, echo = F}
+products <- kornumsatz %>%
+  filter(Menge < 0) %>%
+  group_by(Produkt_Zusammenfassung, 
+           Jahr = year(Tag),
+           Monat = month(Tag, label = T, abbr = F)) %>%
+  summarise(Verzehr = abs(sum(Menge))) %>%
+  ungroup() %>%
+  spread(key = Jahr, value = Verzehr) %>%
+  arrange(Produkt_Zusammenfassung)
+
+knitr::kable(products)
+```
