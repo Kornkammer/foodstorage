@@ -1,6 +1,6 @@
-###################################################################################################
-###################### read kornumsatz ############################################################
-###################################################################################################
+###############################################################################
+###################### read kornumsatz ########################################
+###############################################################################
 path <- "/home/simon/Documents/Rprojects/unknownProducts/"
 files <- list.files(file.path(path))
 # filter all backups (files which end up with .BAK)
@@ -49,11 +49,7 @@ ui <- shinyUI(
       h2("Du willst wissen, was in der Kornkammer gerade vorrätig ist?"),
       br(), # empty row
       fluidRow(
-        selectInput(
-          "filter",
-          "Welche Produkte sollen angezeigt werden?",
-          choices = filter
-        )
+        uiOutput("filter")
       ),
       br(),
       # dataTable = mainPanel
@@ -69,7 +65,7 @@ ui <- shinyUI(
       h2("Hier findet ihr alle Produktinformationen zum Bearbeiten"),
       br(), # empty row
       
-      fluidRow(column(4, uiOutput("productInfoInput"))),
+      fluidRow(column(12, uiOutput("editProductInfo"))),
       
       fluidRow(
         column(12, DT::dataTableOutput("productInfo"))
@@ -88,10 +84,11 @@ server <- shinyServer(function(input, output, session){
   ######################## reactive part for all tab panels ###################
   # first of all: make starting_csv reactive
   rV <- reactiveValues(
-    productInfo = datatable(matrix(c(1:10), nrow = 2)), # example data
+    productInfo = matrix(c(1:10), nrow = 2), # example data
     addProducts = c("example")
-    # print(head(get("productInfo")))
   )
+  
+  # which data are currently requested from the user?
   currentData <- eventReactive(input$tabs, {
     #### load data from kornInfo.sqlite ####
     kornInfo <- DBI::dbConnect(RSQLite::SQLite(), pathToKornInfo)
@@ -107,8 +104,9 @@ server <- shinyServer(function(input, output, session){
     #### check difference between original data and product information ####
     dif <- checkDifference(originalData, productInfo)
     
-    # if there is no difference, data are up to date
+    # if there is no difference, data are up to date...
     if (length(dif) == 0) {
+      #... which means that we can add product information to food storage data
       editData <- startupSettings(originalData, productInfo)
       
       # write edited data into database
@@ -122,7 +120,8 @@ server <- shinyServer(function(input, output, session){
       
       return(list(
         editData = editData,
-        productInfo = datatable(productInfo)
+        productInfo = productInfo,
+        dataAreUpToDate = TRUE
       ))
       
     } else {
@@ -137,19 +136,34 @@ server <- shinyServer(function(input, output, session){
         Verpackungseinheit = rep(NA, length(dif))
       )
       
-      newProducts <- bind_rows(productInfo, difDF) %>%
-        arrange(Produkte_Zusammenfassung)
+      # add products to productInfo which have no information yet
+      productInfo <- dplyr::arrange(
+        dplyr::bind_rows(productInfo, difDF), Produkte_Zusammenfassung
+      )
       return(list(
         originalData = originalData,
-        productInfo = datatable(productInfo),
-        addProducts = dif,
-        newProducts = newProducts
+        productInfo = productInfo,
+        # addProducts = dif,
+        # newProducts = newProducts,
+        dataAreUpToDate = FALSE
       ))
     }
   })
+  
+  # render 'filter'-UI when dataset is up to date
+  output$filter <- renderUI({
+    if (currentData()$dataAreUpToDate == TRUE) {
+      selectInput(
+        "filter",
+        "Welche Produkte sollen angezeigt werden?",
+        choices = filter
+      )
+    }
+  })
+  
   # update reactive values
   observeEvent(currentData(), {
-    if (is.list(currentData())) {
+    if (currentData()$dataAreUpToDate == FALSE) {
       rV$productInfo <- currentData()$productInfo
       rV$addProducts <- currentData()$addProducts
     }
@@ -159,17 +173,16 @@ server <- shinyServer(function(input, output, session){
   #############################################################################
   ############# reactive part specially for foodstorage panel #################
   output$storage <- DT::renderDataTable({
-    if (length(currentData()) == 2) {
+    if (currentData()$dataAreUpToDate == TRUE) {
       # show a datatable including product infos
       return(prepareDatatable(
         currentData()$editData,
         filter = input$filter
       ))
     }
-    if (length(currentData()) == 4) {
+    if (currentData()$dataAreUpToDate == FALSE) {
       # show a datatable with the current food storage without product infos
-      data <- currentData()$originalData
-      return(data)
+      return(currentData()$originalData)
     }
   })
   
@@ -186,13 +199,69 @@ server <- shinyServer(function(input, output, session){
   
   
   output$productInfo <- DT::renderDataTable({
-    if (length(currentData()) == 2) {
-      data <- currentData()$productInfo
+    data <- currentData()$productInfo
+    return(DT::datatable(data, selection = "single"))
+  })
+  
+  # no we wanna create the UIoutput to edit product information
+  output$editProductInfo <- renderUI({
+    # only render when a row is selected (dont render when currentData changes)
+    if (!is.null(input$productInfo_rows_selected)) {
+      currentRow <- dplyr::slice(
+        isolate(currentData()$productInfo), input$productInfo_rows_selected
+      )
+      
+      prodInfo <- isolate(currentData()$productInfo)
+      tagList(
+        fluidRow(
+          column(
+            3,
+            selectizeInput(
+              "productSummary", "Produkte Zusammenfassung",
+              choices = unique(prodInfo$Produkte_Zusammenfassung),
+              selected = currentRow$Produkte_Zusammenfassung,
+              options = list(create = TRUE)
+            )
+          ),
+          column(
+            2,
+            selectizeInput(
+              "deliverer1", "Lieferant Nr.1",
+              choices = unique(prodInfo$Lieferant),
+              selected = currentRow$Lieferant,
+              options = list(create = TRUE)
+            )
+          ),
+          column(
+            2,
+            selectizeInput(
+              "deliverer2", "Lieferant Nr.2",
+              choices = unique(prodInfo$Lieferant2),
+              selected = currentRow$Lieferant2,
+              options = list(create = TRUE)
+            )
+          ),
+          column(
+            3,
+            selectizeInput(
+              "productGroup", "Produktgruppe",
+              choices = unique(prodInfo$Produktgruppe),
+              selected = currentRow$Produktgruppe,
+              options = list(create = TRUE)
+            )
+          ),
+          column(
+            2,
+            selectizeInput(
+              "bulksize", "VPE",
+              choices = unique(prodInfo$Verpackungseinheit),
+              selected = currentRow$Verpackungseinheit,
+              options = list(create = TRUE)
+            )
+          )
+        )
+      )
     }
-    if (length(currentData()) == 4) {
-      data <- currentData()$newProducts
-    }
-    return(data)
   })
   
 }) # end of server part
