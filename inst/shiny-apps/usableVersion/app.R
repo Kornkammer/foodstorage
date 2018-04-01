@@ -66,8 +66,7 @@ ui <- shinyUI(
       br(), # empty row
       
       fluidRow(
-        column(3, uiOutput("editProductSummary")),
-        column(9, uiOutput("editAnyOtherInputColumns"))
+        column(12, uiOutput("editProductInfo"))
       ),
       
       fluidRow(
@@ -89,7 +88,9 @@ ui <- shinyUI(
 server <- shinyServer(function(input, output, session){
   #############################################################################
   ######################## reactive part for all tab panels ###################
-  #### first of all: make starting_csv reactive ####
+  #### first of all: safe productInfo as a reactiveValue ####
+  # ones it gets feeded with data by currentData() (which means by changing the
+  # tab), it gets updated everytime the saveButton is pressed
   reactiveData <- reactiveValues(
     productInfo = NULL
   )
@@ -194,18 +195,18 @@ server <- shinyServer(function(input, output, session){
   # at first render productInfo datatable
   output$displayProductInfo <- DT::renderDataTable({
     data <- reactiveData$productInfo
-    return(DT::datatable(data))
+    return(DT::datatable(data, selection = "single"))
   })
   
   # everytime a row gets clicked, this function returns which ones are selected
   selectedRows <- eventReactive(input$displayProductInfo_rows_selected, {
     # get index (or indices)
-    currentRowIndex <- sort(input$displayProductInfo_rows_selected)
+    currentRowIndex <- input$displayProductInfo_rows_selected
     
     # get selected data
     selectedRows <- dplyr::slice(
       isolate(reactiveData$productInfo), 
-      sort(input$displayProductInfo_rows_selected)
+      currentRowIndex
     )
     
     return(list(
@@ -215,23 +216,82 @@ server <- shinyServer(function(input, output, session){
   })
   
   # no we wanna create the UIoutput to edit product information
-  output$editProductSummary <- renderUI({
+  output$editProductInfo <- renderUI({
     # only render when a row is selected (dont render when currentData changes)
     if (!is.null(input$displayProductInfo_rows_selected)) {
-      prodInfo <- isolate(reactiveData$productInfo)
-      selectizeInput(
-        "productSummary", "Produkte Zusammenfassung",
-        choices = unique(prodInfo$Produkte_Zusammenfassung),
-        selected = selectedRows()$table$Produkte_Zusammenfassung[1],
-        options = list(create = TRUE)
-      )
-    } # end of if condition
+      isolate({
+        prodInfo <- reactiveData$productInfo
+        selectedRowIndex <- input$displayProductInfo_rows_selected
+        
+        tagList(
+          fluidRow(
+            column(
+              3, 
+              selectizeInput(
+                "productSummary", "Produkte Zusammenfassung",
+                choices = unique(prodInfo$Produkte_Zusammenfassung),
+                selected = prodInfo$Produkte_Zusammenfassung[selectedRowIndex],
+                options = list(create = TRUE)
+              )
+            ),
+            column(
+              2,
+              selectizeInput(
+                "deliverer1", "Lieferant Nr.1",
+                choices = unique(prodInfo$Lieferant),
+                selected = prodInfo$Lieferant[selectedRowIndex],
+                options = list(create = TRUE)
+              )
+            ),
+            column(
+              2,
+              selectizeInput(
+                "deliverer2", "Lieferant Nr.2",
+                choices = unique(prodInfo$Lieferant2),
+                selected = prodInfo$Lieferant2[selectedRowIndex],
+                options = list(create = TRUE)
+              )
+            ),
+            column(
+              3,
+              selectizeInput(
+                "productGroup", "Produktgruppe",
+                choices = unique(prodInfo$Produktgruppe),
+                selected = prodInfo$Produktgruppe[selectedRowIndex],
+                options = list(create = TRUE)
+              )
+            ),
+            column(
+              2,
+              selectizeInput(
+                "bulksize", "VPE",
+                choices = unique(prodInfo$Verpackungseinheit),
+                selected = prodInfo$Verpackungseinheit[selectedRowIndex],
+                options = list(create = TRUE)
+              )
+            )
+          ),
+          # create action button
+          fluidRow(
+            column(
+              2, offset = 2,
+              actionButton(
+                "saveButton", "Änderungen speichern", icon = icon("save")
+              )
+            )
+          )
+        ) # end of tagList
+        
+        
+        
+      })
+    }
+    
   }) # end of renderUI of editProductInf
   
   chosenProductSummary <- eventReactive(input$productSummary, {
     prodInfo <- isolate(reactiveData$productInfo)
     if (input$productSummary %in% unique(prodInfo$Produkte_Zusammenfassung)) {
-      # take current row except it's full of empty strings
       # take current row for autofill
       currentRow <- dplyr::select(
         selectedRows()$table, Lieferant:Verpackungseinheit
@@ -241,7 +301,7 @@ server <- shinyServer(function(input, output, session){
         possibilites <- dplyr::filter(
           prodInfo, Produkte_Zusammenfassung == input$productSummary
         )
-        
+
         ls <- list(
           deliverer1 = dplyr::pull(possibilites, Lieferant)[1],
           deliverer2 = dplyr::pull(possibilites, Lieferant2)[1],
@@ -256,8 +316,8 @@ server <- shinyServer(function(input, output, session){
           bulksize = dplyr::pull(currentRow, Verpackungseinheit)[1]
         )
       }
-      
-      
+
+
     } else {
       ls <- list(
         deliverer1 = "",
@@ -268,63 +328,55 @@ server <- shinyServer(function(input, output, session){
     }
     return(ls)
   })
-  
-  output$editAnyOtherInputColumns <- renderUI({
-    prodInfo <- isolate(reactiveData$productInfo)
-    inputColumns <- chosenProductSummary()
-    
-    if (!is.null(input$displayProductInfo_rows_selected)) {
-      tagList(
-        fluidRow(
-          column(
-            2,
-            selectizeInput(
-              "deliverer1", "Lieferant Nr.1",
-              choices = unique(prodInfo$Lieferant),
-              selected = inputColumns$deliverer1,
-              options = list(create = TRUE)
-            )
-          ),
-          column(
-            2,
-            selectizeInput(
-              "deliverer2", "Lieferant Nr.2",
-              choices = unique(prodInfo$Lieferant2),
-              selected = inputColumns$deliverer2,
-              options = list(create = TRUE)
-            )
-          ),
-          column(
-            3,
-            selectizeInput(
-              "productGroup", "Produktgruppe",
-              choices = unique(prodInfo$Produktgruppe),
-              selected = inputColumns$productGroup,
-              options = list(create = TRUE)
-            )
-          ),
-          column(
-            2,
-            selectizeInput(
-              "bulksize", "VPE",
-              choices = unique(prodInfo$Verpackungseinheit),
-              selected = inputColumns$bulksize,
-              options = list(create = TRUE)
-            )
-          )
-        ), # end of first fluidRow
-        # create action button
-        fluidRow(
-          column(
-            2, offset = 2,
-            actionButton(
-              "saveButton", "Änderungen speichern", icon = icon("save")
-            )
-          )
-        )
-      ) # end of taglist
-    }
-  })
+  # 
+  # output$editAnyOtherInputColumns <- renderUI({
+  #   prodInfo <- isolate(reactiveData$productInfo)
+  #   inputColumns <- chosenProductSummary()
+  #   
+  #   if (!is.null(input$displayProductInfo_rows_selected)) {
+  #     tagList(
+  #       fluidRow(
+  #         column(
+  #           2,
+  #           selectizeInput(
+  #             "deliverer1", "Lieferant Nr.1",
+  #             choices = unique(prodInfo$Lieferant),
+  #             selected = inputColumns$deliverer1,
+  #             options = list(create = TRUE)
+  #           )
+  #         ),
+  #         column(
+  #           2,
+  #           selectizeInput(
+  #             "deliverer2", "Lieferant Nr.2",
+  #             choices = unique(prodInfo$Lieferant2),
+  #             selected = inputColumns$deliverer2,
+  #             options = list(create = TRUE)
+  #           )
+  #         ),
+  #         column(
+  #           3,
+  #           selectizeInput(
+  #             "productGroup", "Produktgruppe",
+  #             choices = unique(prodInfo$Produktgruppe),
+  #             selected = inputColumns$productGroup,
+  #             options = list(create = TRUE)
+  #           )
+  #         ),
+  #         column(
+  #           2,
+  #           selectizeInput(
+  #             "bulksize", "VPE",
+  #             choices = unique(prodInfo$Verpackungseinheit),
+  #             selected = inputColumns$bulksize,
+  #             options = list(create = TRUE)
+  #           )
+  #         )
+  #       ), # end of first fluidRow
+  #       
+  #     ) # end of taglist
+  #   }
+  # })
   
   # observe save button and if it's pressed, data will saved into database and 
   # reactiveData will be updated
