@@ -198,23 +198,6 @@ server <- shinyServer(function(input, output, session){
     return(DT::datatable(data, selection = "single"))
   })
   
-  # everytime a row gets clicked, this function returns which ones are selected
-  selectedRows <- eventReactive(input$displayProductInfo_rows_selected, {
-    # get index (or indices)
-    currentRowIndex <- input$displayProductInfo_rows_selected
-    
-    # get selected data
-    selectedRows <- dplyr::slice(
-      isolate(reactiveData$productInfo), 
-      currentRowIndex
-    )
-    
-    return(list(
-      index = currentRowIndex,
-      table = selectedRows
-    ))
-  })
-  
   # no we wanna create the UIoutput to edit product information
   output$editProductInfo <- renderUI({
     # only render when a row is selected (dont render when currentData changes)
@@ -270,113 +253,64 @@ server <- shinyServer(function(input, output, session){
                 options = list(create = TRUE)
               )
             )
-          ),
-          # create action button
-          fluidRow(
-            column(
-              2, offset = 2,
-              actionButton(
-                "saveButton", "Änderungen speichern", icon = icon("save")
-              )
-            )
-          )
+          ) # end of fluidRow
         ) # end of tagList
-        
-        
-        
-      })
-    }
+      }) # end of isolate()
+    } # end of if condition (if a row is selected)
     
   }) # end of renderUI of editProductInf
   
-  chosenProductSummary <- eventReactive(input$productSummary, {
-    prodInfo <- isolate(reactiveData$productInfo)
-    if (input$productSummary %in% unique(prodInfo$Produkte_Zusammenfassung)) {
-      # take current row for autofill
-      currentRow <- dplyr::select(
-        selectedRows()$table, Lieferant:Verpackungseinheit
+  output$saveButton <- renderUI({
+    if (!is.null(input$displayProductInfo_rows_selected)) {
+      # print(input$displayProductInfo_rows_selected)
+      currentRow <- dplyr::slice(
+        reactiveData$productInfo,
+        input$displayProductInfo_rows_selected
       )
-      if ( isTRUE(unique(nzchar(currentRow[1,]))) ) {
-        # filter prodInfo by selected product summary and return other columns
-        possibilites <- dplyr::filter(
-          prodInfo, Produkte_Zusammenfassung == input$productSummary
-        )
-
-        ls <- list(
-          deliverer1 = dplyr::pull(possibilites, Lieferant)[1],
-          deliverer2 = dplyr::pull(possibilites, Lieferant2)[1],
-          productGroup = dplyr::pull(possibilites, Produktgruppe)[1],
-          bulksize = dplyr::pull(possibilites, Verpackungseinheit)[1]
-        )
-      } else {
-        ls <- list(
-          deliverer1 = dplyr::pull(currentRow, Lieferant)[1],
-          deliverer2 = dplyr::pull(currentRow, Lieferant2)[1],
-          productGroup = dplyr::pull(currentRow, Produktgruppe)[1],
-          bulksize = dplyr::pull(currentRow, Verpackungseinheit)[1]
+      currentRow <- unlist(currentRow, use.names = F)[-1]
+  
+      # create action button
+      if (input$productSummary != currentRow[1] |
+          input$deliverer1 != currentRow[2] |
+          input$deliverer2 != currentRow[3] |
+          input$productGroup != currentRow[4] |
+          input$bulksize != currentRow[5]) {
+        actionButton(
+          "saveButton", "Änderungen speichern", icon = icon("save")
         )
       }
-
-
-    } else {
-      ls <- list(
-        deliverer1 = "",
-        deliverer2 = "",
-        productGroup = "",
-        bulksize = ""
+    }
+  })
+  
+  observeEvent(input$productSummary, {
+    prodInfo <- isolate(reactiveData$productInfo)
+    # if chosen product summary is already known, all the other inputs will be
+    # updated
+    if (input$productSummary %in% unique(prodInfo$Produkte_Zusammenfassung)) {
+      # filter prodInfo by the product summary which was chosen by the user
+      autofillRow <- dplyr::filter(
+        prodInfo,
+        Produkte_Zusammenfassung == input$productSummary
+      )
+      # update the adequate inputs...
+      updateSelectizeInput(
+        session, "deliverer1", 
+        selected = dplyr::pull(autofillRow, Lieferant)[1]
+      )
+      updateSelectizeInput(
+        session, "deliverer2",
+        selected = dplyr::pull(autofillRow, Lieferant2)[1]
+      )
+      updateSelectizeInput(
+        session, "productGroup",
+        selected = dplyr::pull(autofillRow, Produktgruppe)[1]
+      )
+      updateSelectInput(
+        session, "bulksize",
+        selected = dplyr::pull(autofillRow, Verpackungseinheit)[1]
       )
     }
-    return(ls)
   })
-  # 
-  # output$editAnyOtherInputColumns <- renderUI({
-  #   prodInfo <- isolate(reactiveData$productInfo)
-  #   inputColumns <- chosenProductSummary()
-  #   
-  #   if (!is.null(input$displayProductInfo_rows_selected)) {
-  #     tagList(
-  #       fluidRow(
-  #         column(
-  #           2,
-  #           selectizeInput(
-  #             "deliverer1", "Lieferant Nr.1",
-  #             choices = unique(prodInfo$Lieferant),
-  #             selected = inputColumns$deliverer1,
-  #             options = list(create = TRUE)
-  #           )
-  #         ),
-  #         column(
-  #           2,
-  #           selectizeInput(
-  #             "deliverer2", "Lieferant Nr.2",
-  #             choices = unique(prodInfo$Lieferant2),
-  #             selected = inputColumns$deliverer2,
-  #             options = list(create = TRUE)
-  #           )
-  #         ),
-  #         column(
-  #           3,
-  #           selectizeInput(
-  #             "productGroup", "Produktgruppe",
-  #             choices = unique(prodInfo$Produktgruppe),
-  #             selected = inputColumns$productGroup,
-  #             options = list(create = TRUE)
-  #           )
-  #         ),
-  #         column(
-  #           2,
-  #           selectizeInput(
-  #             "bulksize", "VPE",
-  #             choices = unique(prodInfo$Verpackungseinheit),
-  #             selected = inputColumns$bulksize,
-  #             options = list(create = TRUE)
-  #           )
-  #         )
-  #       ), # end of first fluidRow
-  #       
-  #     ) # end of taglist
-  #   }
-  # })
   
   # observe save button and if it's pressed, data will saved into database and 
   # reactiveData will be updated
