@@ -32,6 +32,42 @@ filter <- c(
   "alle leeren LM" = "empty"
 )
 
+saveData <- function(data) {
+  # Connect to the database
+  db <- DBI::dbConnect(RSQLite::SQLite(), pathToKornInfo)
+  
+  prodInfo <- dbReadTable(db, "productInfo")
+  requestedRow <- dplyr::filter(
+    prodInfo,
+    Produkte_App == data[1, "Produkte_App"]
+  )
+  
+  if (nrow(requestedRow) != 0) {
+    # Construct the update query by looping over the data fields
+    query <- sprintf(
+      "UPDATE %s SET %s WHERE Produkte_App = %s",
+      "productInfo", 
+      paste0(names(data), " = '", data, "'", collapse = ", "),
+      paste0("'", data[1, "Produkte_App"], "'")
+    )
+  } else {
+    query <- sprintf(
+      "INSERT INTO %s (%s) VALUES ('%s')",
+      "productInfo", 
+      paste(names(data), collapse = ", "),
+      paste(data, collapse = "', '")
+    )
+  }
+  
+  # Submit the update query and disconnect
+  dbGetQuery(db, query)
+  
+  # for debugging
+  # prodInfo <- dbReadTable(db, "productInfo")
+  # print(prodInfo[which(prodInfo$Produkte_App == data[1, "Produkte_App"]), ])
+  dbDisconnect(db)
+}
+
 ###############################################################################
 ########################### Shiny UI ##########################################
 ###############################################################################
@@ -121,7 +157,7 @@ server <- shinyServer(function(input, output, session){
       DBI::dbWriteTable(
         kornInfo,
         "kornumsatz_edit",
-        editData,
+        edittedData,
         overwrite = T
       )
       DBI::dbDisconnect(kornInfo)
@@ -261,7 +297,7 @@ server <- shinyServer(function(input, output, session){
           ), # end of first fluidRow
           fluidRow(
             column(
-              2, offset = 5,
+              2, offset = 1,
               actionButton(
                 "saveButton", "Änderungen speichern", icon = icon("save")
               )
@@ -305,12 +341,19 @@ server <- shinyServer(function(input, output, session){
     }
   })
   
-  # observe save button and if it's pressed, data will saved into database and 
-  # reactiveData will be updated
+  # observe save button and if it's pressed, data will be saved into database
+  # and reactiveData will be updated
   observeEvent(input$saveButton, {
+    
+    # load productInfo to get the original name of the requested product
+    prodInfo <- reactiveData$productInfo
+    selectedRow <- input$displayProductInfo_rows_selected
+    requestedProduct <- prodInfo$Produkte_App[selectedRow]
+    
     # everytime save button is pressed, update current row
     # get new values from the inputs
     updatedRow <- data.frame(
+      Produkte_App = requestedProduct,
       Produkte_Zusammenfassung = input$productSummary,
       Lieferant = input$deliverer1,
       Lieferant2 = input$deliverer2,
@@ -321,8 +364,10 @@ server <- shinyServer(function(input, output, session){
     
     # update current row of productInfo except product's name in the app 
     # (= "Produkte_App")
-    selectedRowIndex <- input$displayProductInfo_rows_selected
-    reactiveData$productInfo[selectedRowIndex, -1] <- updatedRow[1, ]
+    reactiveData$productInfo[selectedRow, ] <- updatedRow[1, ]
+    
+    # save data into data base
+    saveData(updatedRow)
   })
 }) # end of server part
 
