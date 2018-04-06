@@ -137,16 +137,17 @@ server <- shinyServer(function(input, output, session){
       
       difDF <- tibble(
         Produkte_App = dif,
-        Produkte_Zusammenfassung = rep("", length(dif)),
-        Lieferant = rep("", length(dif)),
-        Lieferant2 = rep("", length(dif)),
-        Produktgruppe = rep("", length(dif)),
-        Verpackungseinheit = rep(NA, length(dif))
+        Produkte_Zusammenfassung = "",
+        Lieferant = "",
+        Lieferant2 = "",
+        Produktgruppe = "",
+        Verpackungseinheit = NA
       )
       
       # add products to productInfo which have no information yet
       productInfo <- dplyr::arrange(
-        dplyr::bind_rows(productInfo, difDF), Produkte_Zusammenfassung
+        dplyr::bind_rows(productInfo, difDF), 
+        Produkte_Zusammenfassung
       )
       return(list(
         originalData = originalData,
@@ -204,7 +205,11 @@ server <- shinyServer(function(input, output, session){
     if (!is.null(input$displayProductInfo_rows_selected)) {
       isolate({
         prodInfo <- reactiveData$productInfo
-        selectedRowIndex <- input$displayProductInfo_rows_selected
+        # selectedRowIndex <- input$displayProductInfo_rows_selected
+        selectedRow <- dplyr::slice(
+          prodInfo,
+          input$displayProductInfo_rows_selected
+        )
         
         tagList(
           fluidRow(
@@ -213,7 +218,7 @@ server <- shinyServer(function(input, output, session){
               selectizeInput(
                 "productSummary", "Produkte Zusammenfassung",
                 choices = unique(prodInfo$Produkte_Zusammenfassung),
-                selected = prodInfo$Produkte_Zusammenfassung[selectedRowIndex],
+                selected = selectedRow$Produkte_Zusammenfassung,
                 options = list(create = TRUE)
               )
             ),
@@ -222,7 +227,7 @@ server <- shinyServer(function(input, output, session){
               selectizeInput(
                 "deliverer1", "Lieferant Nr.1",
                 choices = unique(prodInfo$Lieferant),
-                selected = prodInfo$Lieferant[selectedRowIndex],
+                selected = selectedRow$Lieferant,
                 options = list(create = TRUE)
               )
             ),
@@ -231,7 +236,7 @@ server <- shinyServer(function(input, output, session){
               selectizeInput(
                 "deliverer2", "Lieferant Nr.2",
                 choices = unique(prodInfo$Lieferant2),
-                selected = prodInfo$Lieferant2[selectedRowIndex],
+                selected = selectedRow$Lieferant2,
                 options = list(create = TRUE)
               )
             ),
@@ -240,7 +245,7 @@ server <- shinyServer(function(input, output, session){
               selectizeInput(
                 "productGroup", "Produktgruppe",
                 choices = unique(prodInfo$Produktgruppe),
-                selected = prodInfo$Produktgruppe[selectedRowIndex],
+                selected = selectedRow$Produktgruppe,
                 options = list(create = TRUE)
               )
             ),
@@ -249,39 +254,27 @@ server <- shinyServer(function(input, output, session){
               selectizeInput(
                 "bulksize", "VPE",
                 choices = unique(prodInfo$Verpackungseinheit),
-                selected = prodInfo$Verpackungseinheit[selectedRowIndex],
+                selected = selectedRow$Verpackungseinheit,
                 options = list(create = TRUE)
               )
             )
-          ) # end of fluidRow
+          ), # end of first fluidRow
+          fluidRow(
+            column(
+              2, offset = 5,
+              actionButton(
+                "saveButton", "Änderungen speichern", icon = icon("save")
+              )
+            )
+          ) # end of second fluidRow
         ) # end of tagList
       }) # end of isolate()
     } # end of if condition (if a row is selected)
     
   }) # end of renderUI of editProductInf
   
-  output$saveButton <- renderUI({
-    if (!is.null(input$displayProductInfo_rows_selected)) {
-      # print(input$displayProductInfo_rows_selected)
-      currentRow <- dplyr::slice(
-        reactiveData$productInfo,
-        input$displayProductInfo_rows_selected
-      )
-      currentRow <- unlist(currentRow, use.names = F)[-1]
-  
-      # create action button
-      if (input$productSummary != currentRow[1] |
-          input$deliverer1 != currentRow[2] |
-          input$deliverer2 != currentRow[3] |
-          input$productGroup != currentRow[4] |
-          input$bulksize != currentRow[5]) {
-        actionButton(
-          "saveButton", "Änderungen speichern", icon = icon("save")
-        )
-      }
-    }
-  })
-  
+  # observe product summary: if the chosen name is already known, use autofill
+  # to fill the other columns
   observeEvent(input$productSummary, {
     prodInfo <- isolate(reactiveData$productInfo)
     # if chosen product summary is already known, all the other inputs will be
@@ -328,8 +321,8 @@ server <- shinyServer(function(input, output, session){
     
     # update current row of productInfo except product's name in the app 
     # (= "Produkte_App")
-    currentRowIndex <- input$displayProductInfo_rows_selected
-    reactiveData$productInfo[currentRowIndex, -1] <- updatedRow[1, ]
+    selectedRowIndex <- input$displayProductInfo_rows_selected
+    reactiveData$productInfo[selectedRowIndex, -1] <- updatedRow[1, ]
   })
 }) # end of server part
 
