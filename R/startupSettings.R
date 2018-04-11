@@ -19,4 +19,5 @@ startupSettings <- function(dataset, productInfo) {
   # column
   newData <- addCumulativeStorage(editData, duplicates, summariseQuantity)
   
+  return(newData)
 }

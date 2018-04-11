@@ -1,9 +1,11 @@
+#' @importFrom magrittr '%>%'
+
 identifyDuplicates <- function(data) {
   
   # evaluate IDs of duplicates
   duplicates <- data %>%
-    group_by(Produkt_Zusammenfassung, Tag) %>%
-    select(Produkt_Zusammenfassung, Tag, ID)
+    dplyr::group_by(Produkt_Zusammenfassung, Tag) %>%
+    dplyr::select(Produkt_Zusammenfassung, Tag, ID)
   duplicates <- duplicates[duplicated(
     duplicates[, c("Produkt_Zusammenfassung", "Tag")]
   ), "ID"]

@@ -1,12 +1,19 @@
 Package: foodstorage
 Title: Look-up foodco-ops' storage of products
-Version: 0.3.3
+Version: 0.5.1
 Authors@R: person("Simon", "Poeschl", email = "frumentum@posteo.de", role = c("aut", "cre"))
 Description: This package contains a bunch of functions for calculating the current storage's inventory. Automatically it reports when a new order cycle should be started. For a better visualisation you can find a shiny app inside the package which you can call with the function, runStorageApp().
-Depends: R (>= 3.0.0), lubridate (>= 1.6.0), shiny (>= 1.0.0), DT (>= 0.2), ggplot2 (>= 2.2.1), shinyBS (>= 0.61), DBI, RSQLite, dplyr (>= 0.7.4)
+Depends: R (>= 3.0.0)
 License: GPL
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.0.1
-Import: shinyjs (>= 0.9), shinythemes, colourpicker (>= 0.3), data.table (>= 1.10.4), 
-Suggests: testthat
+Imports: 
+  DBI, 
+  dplyr (>= 0.7.4),
+  DT (>= 0.2), 
+  RSQLite, 
+  shiny (>= 1.0.0)
+Suggests: 
+    htmlwidgets,
+    testthat

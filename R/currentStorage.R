@@ -8,6 +8,7 @@
 #' @param group optional character vector which contians product names
 #' @return A dataframe will be returned.
 #' @export
+#' @importFrom magrittr '%>%'
 
 currentStorage <- function(dataset, group) {
   
@@ -16,16 +17,16 @@ currentStorage <- function(dataset, group) {
     stopifnot(is.character(group))
     
     data <- dataset %>%
-      filter(Produkt_Zusammenfassung %in% group) %>%
-      group_by(Produkt_Zusammenfassung) %>%
-      filter(Tag == last(Tag)) %>%
-      ungroup() 
+      dplyr::filter(Produkt_Zusammenfassung %in% group) %>%
+      dplyr::group_by(Produkt_Zusammenfassung) %>%
+      dplyr::filter(Tag == last(Tag)) %>%
+      dplyr::ungroup() 
     
   } else {
     data <- dataset %>%
-      group_by(Produkt_Zusammenfassung) %>%
-      filter(Tag == last(Tag)) %>%
-      ungroup()
+      dplyr::group_by(Produkt_Zusammenfassung) %>%
+      dplyr::filter(Tag == dplyr::last(Tag)) %>%
+      dplyr::ungroup()
   }
   
   return(data)

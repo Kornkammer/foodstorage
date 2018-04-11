@@ -2,8 +2,8 @@
 
 export(checkDifference)
 export(currentStorage)
-export(editDataset)
 export(importData)
 export(prepareDatatable)
 export(runStorageApp)
 export(startupSettings)
+importFrom(magrittr,'%>%')
