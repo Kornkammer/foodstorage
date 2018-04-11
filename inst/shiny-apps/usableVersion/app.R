@@ -36,7 +36,7 @@ saveData <- function(data) {
   # Connect to the database
   db <- DBI::dbConnect(RSQLite::SQLite(), pathToKornInfo)
   
-  prodInfo <- dbReadTable(db, "productInfo")
+  prodInfo <- DBI::dbReadTable(db, "productInfo")
   requestedRow <- dplyr::filter(
     prodInfo,
     Produkte_App == data[1, "Produkte_App"]
@@ -60,12 +60,12 @@ saveData <- function(data) {
   }
   
   # Submit the update query and disconnect
-  dbGetQuery(db, query)
+  DBI::dbGetQuery(db, query)
   
   # for debugging
   # prodInfo <- dbReadTable(db, "productInfo")
   # print(prodInfo[which(prodInfo$Produkte_App == data[1, "Produkte_App"]), ])
-  dbDisconnect(db)
+  DBI::dbDisconnect(db)
 }
 
 ###############################################################################

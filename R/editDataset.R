@@ -1,7 +1,7 @@
 #' @title adds two columns to a dataset
 #' @description 
 #' This function adds row numbers to a dataset which equates an ID. Further a vector containing products' bulksize is added.
-#' @export
+#' @importFrom magrittr '%>%'
 
 editDataset <- function(dataset, productInfo) {
   # rename colnames of productInfo, because
@@ -10,21 +10,25 @@ editDataset <- function(dataset, productInfo) {
   # and ensure that datatypes are the right ones
   
   prodInfo <- productInfo %>%
-    mutate(VPE = as.numeric(Verpackungseinheit)) %>%
-    mutate(Produkt_Zusammenfassung = as.character(Produkte_Zusammenfassung)) %>%
-    mutate(Produkt = as.character(Produkte_App)) %>%
-    select(Produkt, Produkt_Zusammenfassung, Lieferant, Lieferant2, 
-           Produktgruppe, VPE)
+    dplyr::mutate(VPE = as.numeric(Verpackungseinheit)) %>%
+    dplyr::mutate(
+      Produkt_Zusammenfassung = as.character(Produkte_Zusammenfassung)
+    ) %>%
+    dplyr::mutate(Produkt = as.character(Produkte_App)) %>%
+    dplyr::select(Produkt, Produkt_Zusammenfassung, Lieferant, Lieferant2, 
+                  Produktgruppe, VPE)
   
   editData <- dataset %>%
-    mutate(Tag = as.Date(Tag, format = "%d/%m/%Y", origin = "1970-01-01")) %>%
-    mutate(Produkt = as.character(Produkt)) %>%
-    mutate(ID = 1:length(Tag)) %>%
-    inner_join(prodInfo)
+    dplyr::mutate(
+      Tag = as.Date(Tag, format = "%d/%m/%Y", origin = "1970-01-01"),
+      Produkt = as.character(Produkt),
+      ID = 1:length(Tag)
+    ) %>%
+    dplyr::inner_join(prodInfo, by = "Produkt")
   
   summariseQuantity <- editData %>%
-    group_by(Produkt_Zusammenfassung, Tag) %>%
-    summarise(MengeNeu = sum(Menge))
+    dplyr::group_by(Produkt_Zusammenfassung, Tag) %>%
+    dplyr::summarise(MengeNeu = sum(Menge))
   
   return(list(
     editData = editData, 
