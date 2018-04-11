@@ -17,10 +17,11 @@ RUN apt-get update && apt-get install -y -t unstable \
     wget --no-verbose "https://s3.amazonaws.com/rstudio-shiny-server-os-build/ubuntu-12.04/x86_64/shiny-server-$VERSION-amd64.deb" -O ss-latest.deb && \
     gdebi -n ss-latest.deb && \
     rm -f version.txt ss-latest.deb && \
-    R -e "install.packages(c('DBI', 'devtools', 'dplyr', 'htmlwidgets', 'RSQLite', 'shiny'), repos='https://cran.rstudio.com/')" && \
-    R -e "devtools::install_github('kornkammer/foodstorage')" && \
-    R -e "devtools:: install_github('rstudio/DT')" && \
-    rm -rf /var/lib/apt/lists/*
+    R -e "install.packages(c('DBI', 'devtools','dplyr', 'DT', 'htmlwidgets', 'RSQLite', 'shiny'), repos='https://cran.rstudio.com/')" && \
+    R -e "devtools::install_github('kornkammer/foodstorage/', ref = 'kornkammer')" && \
+    R -e "library(foodstorage)" && \
+    R -e "foodstorage::runStorageApp('usableVersion')" && \
+    rm -rf /var/lib/apt/lists/*¸
 
 EXPOSE 3838
 
