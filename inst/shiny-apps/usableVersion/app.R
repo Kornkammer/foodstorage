@@ -21,7 +21,7 @@ secondDatabase <- list(
   path = pathToKornInfo
 )
 
-importData(
+foodstorage::importData(
   FROM = pathToBackup,
   TO = secondDatabase
 )
@@ -147,12 +147,12 @@ server <- shinyServer(function(input, output, session){
     )
     
     #### check difference between original data and product information ####
-    dif <- checkDifference(originalData, productInfo)
+    dif <- foodstorage::checkDifference(originalData, productInfo)
     
     # if there is no difference, data are up to date...
     if (length(dif) == 0) {
       #... which means that we can add product information to food storage data
-      edittedData <- startupSettings(originalData, productInfo)
+      edittedData <- foodstorage::startupSettings(originalData, productInfo)
       
       # write edited data into database
       DBI::dbWriteTable(
@@ -208,7 +208,7 @@ server <- shinyServer(function(input, output, session){
       selectInput(
         "filter",
         "Welche Produkte sollen angezeigt werden?",
-        choices = filter
+        choices = filter # possibilities are defined above
       )
     }
   })
@@ -217,10 +217,12 @@ server <- shinyServer(function(input, output, session){
   output$storage <- DT::renderDataTable({
     if (currentData()$dataAreUpToDate == TRUE) {
       # show a datatable including product infos
-      return(prepareDatatable(
-        currentData()$edittedData,
-        filter = input$filter
-      ))
+      if (!is.null(input$filter)) {
+        return(foodstorage::prepareDatatable(
+          currentData()$edittedData,
+          filter = input$filter
+        ))
+      }
     }
     if (currentData()$dataAreUpToDate == FALSE) {
       # show a datatable with the current food storage without product infos
