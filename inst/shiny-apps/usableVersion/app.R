@@ -2,7 +2,7 @@
 ###################### read kornumsatz ########################################
 ###############################################################################
 ### define path where shiny app shall pick up the data bases
-path <- "/mntData/fsData/"
+path <- "/fsData/"
 files <- list.files(file.path(path))
 # filter all backups (files which end up with .BAK)
 backups <- files[which(stringr::str_detect(files, ".BAK$"))]
