@@ -13,7 +13,8 @@ Imports:
   dplyr (>= 0.7.4),
   DT (>= 0.2), 
   RSQLite, 
-  shiny (>= 1.0.0)
+  shiny (>= 1.0.0),
+  stringr
 Suggests: 
     htmlwidgets,
     testthat
