@@ -1,8 +1,11 @@
+library(shiny)
+
 ###############################################################################
 ###################### read kornumsatz ########################################
 ###############################################################################
 ### define path where shiny app shall pick up the data bases
 path <- "/mntData/fsData/"
+# path <- "/home/simon/Documents/Rprojects/unknownProducts/"
 files <- list.files(file.path(path))
 # filter all backups (files which end up with .BAK)
 backups <- files[which(stringr::str_detect(files, ".BAK$"))]
@@ -375,4 +378,4 @@ server <- shinyServer(function(input, output, session){
 }) # end of server part
 
 ###################### execute shiny app ######################################
-shinyApp(ui, server, options = list(port = 1234))
+shinyApp(ui, server)
