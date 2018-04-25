@@ -5,6 +5,7 @@ MAINTAINER Winston Chang "winston@rstudio.com"
 # Install dependencies and Download and install shiny server
 RUN apt-get update && apt-get install -y -t unstable \
     sudo \
+    libperl5.26=5.26.2-2 \
     gdebi-core \
     pandoc \
     pandoc-citeproc \
@@ -17,10 +18,8 @@ RUN apt-get update && apt-get install -y -t unstable \
     wget --no-verbose "https://s3.amazonaws.com/rstudio-shiny-server-os-build/ubuntu-12.04/x86_64/shiny-server-$VERSION-amd64.deb" -O ss-latest.deb && \
     gdebi -n ss-latest.deb && \
     rm -f version.txt ss-latest.deb && \
-    R -e "install.packages(c('DBI', 'devtools','dplyr', 'DT', 'htmlwidgets', 'RSQLite', 'shiny'), repos='https://cran.rstudio.com/')" && \
-    R -e "devtools::install_github('kornkammer/foodstorage/', ref = 'kornkammer')" && \
-    R -e "library(foodstorage)" && \
-    R -e "foodstorage::runStorageApp('usableVersion')" && \
+    R -e "install.packages('devtools', repos='https://cran.rstudio.com/')" && \
+    R -e "devtools::install_github('Kornkammer/foodstorage', ref = 'kornkammer')" && \
     rm -rf /var/lib/apt/lists/*¸
 
 EXPOSE 3838
