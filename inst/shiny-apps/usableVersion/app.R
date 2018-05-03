@@ -4,7 +4,7 @@ library(shiny)
 ###################### read kornumsatz ########################################
 ###############################################################################
 ### define path where shiny app shall pick up the data bases
-path <- "/mntData/fsData/"
+path <- "/home/shiny/fsData/"
 # path <- "/home/simon/Documents/Rprojects/unknownProducts/"
 files <- list.files(file.path(path))
 # filter all backups (files which end up with .BAK)
