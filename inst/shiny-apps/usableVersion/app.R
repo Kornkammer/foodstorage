@@ -5,7 +5,6 @@ library(shiny)
 ###############################################################################
 ### define path where shiny app shall pick up the data bases
 path <- "/home/shiny/fsData"
-# path <- "/home/simon/Documents/Rprojects/unknownProducts/"
 files <- list.files(file.path(path))
 # filter all backups (files which end up with .BAK)
 backups <- files[which(stringr::str_detect(files, ".BAK$"))]
@@ -229,7 +228,11 @@ server <- shinyServer(function(input, output, session){
     }
     if (currentData()$dataAreUpToDate == FALSE) {
       # show a datatable with the current food storage without product infos
-      return(currentData()$originalData)
+      currentStorage <- foodstorage::currentStorage(
+        dataset = currentData()$originalData,
+        dataAreUpToDate = FALSE
+      )
+      return(currentStorage)
     }
   })
   
