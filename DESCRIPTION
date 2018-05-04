@@ -14,7 +14,8 @@ Imports:
   DT (>= 0.2), 
   RSQLite, 
   shiny (>= 1.0.0),
-  stringr
+  stringr,
+  lubridate
 Suggests: 
     htmlwidgets,
     testthat

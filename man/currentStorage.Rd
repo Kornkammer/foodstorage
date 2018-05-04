@@ -4,7 +4,7 @@
 \alias{currentStorage}
 \title{filters the current food storage}
 \usage{
-currentStorage(dataset, group)
+currentStorage(dataset, group, dataAreUpToDate = TRUE)
 }
 \arguments{
 \item{dataset}{kornumsatz as a result from \code{startupSettings()}}
@@ -17,7 +17,7 @@ A dataframe will be returned.
 \description{
 This function filters the current food storage. It looks for 
 the last storage's change for each product and filters them. Optionally
-one can give a \code{group} as input, which is a character strings 
+one can give a \code{group} as input, which is a character string 
 containing product names. If this is given, the function will filter
 the dataset by these product names.
 }
