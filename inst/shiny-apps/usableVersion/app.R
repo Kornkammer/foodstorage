@@ -3,20 +3,23 @@ library(shiny)
 ###############################################################################
 ###################### read kornumsatz ########################################
 ###############################################################################
-### define path where shiny app shall pick up the data bases
-path <- "/home/shiny/fsData"
-files <- list.files(file.path(path))
-# filter all backups (files which end up with .BAK)
-backups <- files[which(stringr::str_detect(files, ".BAK$"))]
-current_backup <- backups[length(backups)] # use newest backup
+### define path where shiny app shall look for backup and kornInfo
+path <- "/home/shiny"
+stopifnot( "backup" %in% dir(file.path(path)) )
+pathToBackupDir <- file.path(path, "backup")
+backup <- list.files(pathToBackupDir, pattern = "\\.BAK$")
+# ensure that we have only one backup in our directory
+stopifnot( length(backup) == 1 )
+# define path to backup
+pathToBackup <- file.path(pathToBackupDir, backup)
 
-pathToBackup <- file.path(path, current_backup)
-
-kornInfo <- files[which(stringr::str_detect(files, "kornInfo.sqlite"))]
-stopifnot(length(kornInfo) == 1)
+# do the same for kornInfo
+stopifnot( "kornInfo" %in% dir(file.path(path)) )
+pathToKorninfoDir <- file.path(path, "kornInfo")
+kornInfo <- list.files(pathToKorninfoDir, pattern = "\\.sqlite$")
+stopifnot( length(kornInfo) == 1 )
 # <<- necessary because its reactive in the server part
-pathToKornInfo <<- file.path(path, kornInfo) 
-
+pathToKornInfo <<- file.path(pathToKorninfoDir, kornInfo) 
 
 secondDatabase <- list(
   nameTable = "kornumsatz_origin",
