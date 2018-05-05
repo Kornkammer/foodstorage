@@ -1,6 +1,6 @@
 Package: foodstorage
 Title: Look-up foodco-ops' storage of products
-Version: 0.5.1
+Version: 0.6.0
 Authors@R: person("Simon", "Poeschl", email = "frumentum@posteo.de", role = c("aut", "cre"))
 Description: This package contains a bunch of functions for calculating the current storage's inventory. Automatically it reports when a new order cycle should be started. For a better visualisation you can find a shiny app inside the package which you can call with the function, runStorageApp().
 Depends: R (>= 3.0.0)
