@@ -2,6 +2,7 @@
 
 export(checkDifference)
 export(currentStorage)
+export(identifyDate)
 export(importData)
 export(prepareDatatable)
 export(runStorageApp)
