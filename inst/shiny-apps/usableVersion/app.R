@@ -247,7 +247,11 @@ server <- shinyServer(function(input, output, session){
   ################## reactive part specially for product information ##########
   # at first render productInfo datatable
   output$displayProductInfo <- DT::renderDataTable({
-    data <- reactiveData$productInfo
+    # data <- reactiveData$productInfo
+    data <- dplyr::rename(
+      reactiveData$productInfo, 
+      zukuenftiger_Name = Produkte_Zusammenfassung
+    )
     return(DT::datatable(data, selection = "single"))
   })
   
@@ -268,7 +272,7 @@ server <- shinyServer(function(input, output, session){
             column(
               3, 
               selectizeInput(
-                "productSummary", "Produkte Zusammenfassung",
+                "productSummary", "zukünftiger Produktname",
                 choices = unique(prodInfo$Produkte_Zusammenfassung),
                 selected = selectedRow$Produkte_Zusammenfassung,
                 options = list(create = TRUE)
