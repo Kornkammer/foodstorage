@@ -7,7 +7,8 @@ library(shiny)
 path <- "/home/shiny"
 stopifnot( "backup" %in% dir(file.path(path)) )
 pathToBackupDir <- file.path(path, "backup")
-backup <- list.files(pathToBackupDir, pattern = "\\.BAK$")
+# take care of << because we need the file name later for identifying the date
+backup <<- list.files(pathToBackupDir, pattern = "\\.BAK$")
 # ensure that we have only one backup in our directory
 stopifnot( length(backup) == 1 )
 # define path to backup
@@ -90,6 +91,9 @@ ui <- shinyUI(
       # Header
       h2("Du willst wissen, was in der Kornkammer gerade vorrätig ist?"),
       br(), # empty row
+      h4(paste(
+        "Backup vom", foodstorage::identifyDate(backup, type = "character_GER")
+      )),
       fluidRow(
         uiOutput("filter")
       ),
