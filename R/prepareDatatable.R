@@ -31,11 +31,11 @@ prepareDatatable <- function(kornumsatz, filter = "nothing", test = FALSE){
 
   data <- data %>%
     dplyr::rename(Produktname_App = Produkt) %>%
-    dplyr::rename(Zusammenfassung = Produkt_Zusammenfassung) %>%
+    dplyr::rename(zukuenftiger_Name = Produkt_Zusammenfassung) %>%
     dplyr::rename(Warenbestand = Bestand.Einheit) %>%
     dplyr::select(
       Produktname_App, 
-      Zusammenfassung, 
+      zukuenftiger_Name, 
       Lieferant, 
       Lieferant2,
       Produktgruppe,
