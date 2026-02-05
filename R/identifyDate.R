@@ -27,7 +27,9 @@ identifyDate <- function(filename, type = "Date") {
   if ( date[1] != "Knk" |
        length(date) != 7 |
        tail(date, 1) != "BAK" ) 
-    stop("Unfortunately the format of the filename probably changed.")
+    message("Unfortunately the format of the filename probably changed.
+            Therefore we return just an example name.")
+    return("Example")
   date <- paste(date[2:4], collapse = "/") 
   date <- as.Date(date, format = "%Y/%m/%d", origin = "1970-01-01")
   

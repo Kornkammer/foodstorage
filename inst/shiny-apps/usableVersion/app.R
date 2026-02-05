@@ -3,24 +3,21 @@ library(shiny)
 ###############################################################################
 ###################### read kornumsatz ########################################
 ###############################################################################
-### define path where shiny app shall look for backup and kornInfo
-path <- "/home/shiny"
-stopifnot( "backup" %in% dir(file.path(path)) )
-pathToBackupDir <- file.path(path, "backup")
+### define path where shiny app shall look for backup and kornInfo: 
+### At the place where foodstorage was installed will be a directory called 'data'
+pathToDataDir <- file.path(system.file(package = "foodstorage"), "data")
 # take care of << because we need the file name later for identifying the date
-backup <<- list.files(pathToBackupDir, pattern = "\\.BAK$")
+backup <<- list.files(pathToDataDir, pattern = "\\.BAK$")
 # ensure that we have only one backup in our directory
-stopifnot( length(backup) == 1 )
+stopifnot(length(backup) == 1)
 # define path to backup
-pathToBackup <- file.path(pathToBackupDir, backup)
+pathToBackup <- file.path(pathToDataDir, backup[1])
 
 # do the same for kornInfo
-stopifnot( "kornInfo" %in% dir(file.path(path)) )
-pathToKorninfoDir <- file.path(path, "kornInfo")
-kornInfo <- list.files(pathToKorninfoDir, pattern = "\\.sqlite$")
-stopifnot( length(kornInfo) == 1 )
+kornInfo <- list.files(pathToDataDir, pattern = "\\.sqlite$")
+stopifnot(length(kornInfo) == 1)
 # <<- necessary because its reactive in the server part
-pathToKornInfo <<- file.path(pathToKorninfoDir, kornInfo) 
+pathToKornInfo <<- file.path(pathToDataDir, kornInfo) 
 
 secondDatabase <- list(
   nameTable = "kornumsatz_origin",
@@ -39,6 +36,7 @@ filter <- c(
   "alle leeren LM" = "empty"
 )
 
+# TODO: Prevent sql-injection if it would be used for production!!!
 saveData <- function(data) {
   # Connect to the database
   db <- DBI::dbConnect(RSQLite::SQLite(), pathToKornInfo)

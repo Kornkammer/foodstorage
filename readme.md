@@ -23,7 +23,7 @@ The directory `data/` contains two sqlite databases: `Backup_example.BAK` and `k
 For some functions documentation are already created, e.g. type `?importData` to see how it works.
 
 ## getting started with foodstorage
-### 1st: install R package with devtools
+### install R package with devtools
 Either you get the package with git or you can directly install it with devtools.
 ```
 git clone git@github.com:frumentum/foodstorage.git
@@ -38,20 +38,11 @@ Ctrl + Shift + B
 ```
 for building and reloading the package foodstorage. Afterwards simply run
 ```
-foodstorage::runStorageApp()
+foodstorage::runStorageApp("usableVersion")
 ```
 in your R console.
-### 2nd: use docker 
-The repository includes a dockerfile which you need for building your docker image. In the following code the image will be called *foodstorage*
-```
-sudo docker build . -t foodstorage_img
-``` 
-With the image you can run a container which gets the name *storage-app*
-```
-sudo docker run -d --name storage-app -v $PWD/inst/:/srv/shiny-server/ -p 3838:3838 foodstorage_img
-```
-The app can be accessed by calling [localhost](http://0.0.0.0:3838) in your browser.
- 
+
+
     Copyright (C) 2017 by it's authors. Some rights reserved. See LICENSE
 
     This program is free software: you can redistribute it and/or modify
